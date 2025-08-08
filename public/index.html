@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Post Scheduler</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        
+        main {
+            padding: 30px;
+        }
+        
+        .form-section {
+            background: #f7f7f7;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3em;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        textarea, input[type="datetime-local"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .schedule-options {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .schedule-option {
+            flex: 1;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .posts-section {
+            margin-top: 30px;
+        }
+        
+        .posts-grid {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .post-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            transition: box-shadow 0.2s;
+        }
+        
+        .post-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .post-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        
+        .post-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-published {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .post-time {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .post-content {
+            color: #333;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        
+        .post-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .delete-btn {
+            background: #dc3545;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        
+        .delete-btn:hover {
+            background: #c82333;
+            box-shadow: 0 3px 10px rgba(220, 53, 69, 0.3);
+        }
+        
+        .publish-btn {
+            background: #28a745;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        
+        .publish-btn:hover {
+            background: #218838;
+            box-shadow: 0 3px 10px rgba(40, 167, 69, 0.3);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        
+        .batch-hint {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 10px 15px;
+            margin-top: 15px;
+            font-size: 14px;
+            color: #1565c0;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ Nostr Post Scheduler</h1>
+            <div class="subtitle">Schedule and manage your Nostr posts</div>
+        </header>
+        
+        <main>
+            <!-- Account Management Section -->
+            <div class="form-section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>Nostr Account</h2>
+                    <button type="button" id="addAccountBtn" style="padding: 8px 16px; font-size: 14px;">+ Add Account</button>
+                </div>
+                
+                <div class="form-group">
+                    <label for="selectedAccount">Active Account</label>
+                    <select id="selectedAccount" name="selectedAccount" required>
+                        <option value="">Loading accounts...</option>
+                    </select>
+                </div>
+                
+                <div style="font-size: 14px; color: #666; margin-top: 10px;">
+                    <span id="accountInfo">Select an account to view details</span>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>Create New Post</h2>
+                <form id="postForm">
+                    <div class="form-group">
+                        <label for="content">Post Content</label>
+                        <textarea id="content" name="content" placeholder="What's on your mind?" required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="scheduleType">Posting Option</label>
+                        <select id="scheduleType" name="scheduleType" required>
+                            <option value="immediate">Post Immediately (no repeat)</option>
+                            <option value="immediate-repeat">Post Immediately (with repeats)</option>
+                            <option value="scheduled">Post on Schedule (no repeat)</option>
+                            <option value="scheduled-repeat">Post on Schedule (with repeats)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="postPublishMethod">Publishing Method</label>
+                        <select id="postPublishMethod" name="postPublishMethod" required>
+                            <option value="api">Direct API</option>
+                            <option value="nostrmq">NostrMQ</option>
+                            <option value="direct">Direct to Relays</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="scheduleTimeGroup" style="display: none;">
+                        <label for="scheduledFor">Schedule For</label>
+                        <input type="datetime-local" id="scheduledFor" name="scheduledFor">
+                    </div>
+                    
+                    <div class="form-group" id="repeatCountGroup" style="display: none;">
+                        <label for="intervalHours">Repeat Every (hours)</label>
+                        <input type="number" id="intervalHours" name="intervalHours" 
+                               min="1" max="168" value="3" placeholder="e.g., 3" style="margin-bottom: 10px;">
+                        
+                        <label for="repeatCount">Number of Repeats</label>
+                        <select id="repeatCount" name="repeatCount">
+                            <option value="8">8 times (1 day @ 3hr intervals)</option>
+                            <option value="16">16 times (2 days @ 3hr intervals)</option>
+                            <option value="56">56 times (7 days @ 3hr intervals)</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                        <input type="number" id="customRepeatCount" name="customRepeatCount" 
+                               min="2" max="100" placeholder="Enter number" style="display: none; margin-top: 10px;">
+                    </div>
+                    
+                    <button type="submit">Create Post</button>
+                </form>
+                
+                <div class="batch-hint" id="scheduleHint" style="display: none;">
+                    💡 <span id="hintText"></span>
+                </div>
+            </div>
+            
+            <div class="posts-section">
+                <h2>Scheduled Posts</h2>
+                <div id="postsContainer" class="loading">Loading posts...</div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div id="addAccountModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
+            <h3 style="margin-bottom: 20px;">Add New Nostr Account</h3>
+            <form id="addAccountForm">
+                <div class="form-group">
+                    <label for="accountName">Account Name</label>
+                    <input type="text" id="accountName" name="accountName" placeholder="e.g., Personal, Work, Alt" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="accountNpub">Nostr Public Key (npub)</label>
+                    <input type="text" id="accountNpub" name="accountNpub" placeholder="npub1..." required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="publishMethod">Publishing Method</label>
+                    <select id="publishMethod" name="publishMethod" required>
+                        <option value="api">Direct API</option>
+                        <option value="nostrmq">NostrMQ</option>
+                        <option value="direct">Direct to Relays (with key)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="apiEndpointGroup">
+                    <label for="accountApiEndpoint">API Endpoint (optional)</label>
+                    <input type="url" id="accountApiEndpoint" name="accountApiEndpoint" placeholder="http://localhost:3000/post/note">
+                </div>
+                
+                <div class="form-group" id="nostrmqTargetGroup" style="display: none;">
+                    <label for="nostrmqTarget">NostrMQ Target (npub)</label>
+                    <input type="text" id="nostrmqTarget" name="nostrmqTarget" placeholder="npub1... of NostrMQ target">
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        💡 Enter the npub of the NostrMQ service that will handle your posts (will be auto-converted to hex)
+                    </div>
+                </div>
+                
+                <div class="form-group" id="directKeyGroup" style="display: none;">
+                    <label for="accountNsec">Private Key (nsec)</label>
+                    <input type="password" id="accountNsec" name="accountNsec" placeholder="nsec1...">
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        🔐 Your private key will be stored securely in macOS Keychain when available
+                    </div>
+                </div>
+                
+                <div class="form-group" id="relaysGroup" style="display: none;">
+                    <label for="relays">Relay URLs (comma-separated)</label>
+                    <textarea id="relays" name="relays" placeholder="wss://relay.damus.io, wss://nos.lol, wss://relay.nostr.band" rows="3"></textarea>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        🌐 Leave empty to use default relays
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                    <button type="button" id="cancelAddAccount" style="background: #6c757d;">Cancel</button>
+                    <button type="submit">Add Account</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        let accounts = [];
+        let selectedAccountId = null;
+        
+        // Set default datetime to now + 1 hour
+        const now = new Date();
+        now.setHours(now.getHours() + 1);
+        document.getElementById('scheduledFor').value = now.toISOString().slice(0, 16);
+        
+        // Load accounts
+        async function loadAccounts() {
+            try {
+                const response = await fetch('/api/accounts');
+                accounts = await response.json();
+                
+                const select = document.getElementById('selectedAccount');
+                select.innerHTML = '';
+                
+                if (accounts.length === 0) {
+                    select.innerHTML = '<option value="">No accounts - please add one</option>';
+                    document.getElementById('accountInfo').textContent = 'No accounts configured';
+                } else {
+                    accounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account.id;
+                        option.textContent = account.name;
+                        if (account.is_active) {
+                            option.selected = true;
+                            selectedAccountId = account.id;
+                        }
+                        select.appendChild(option);
+                    });
+                    updateAccountInfo();
+                }
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+                document.getElementById('selectedAccount').innerHTML = '<option value="">Error loading accounts</option>';
+            }
+        }
+        
+        // Update account info display
+        function updateAccountInfo() {
+            const account = accounts.find(a => a.id == selectedAccountId);
+            if (account) {
+                let methodInfo;
+                if (account.publish_method === 'nostrmq') {
+                    methodInfo = `NostrMQ: ${(account.nostrmq_target_display || account.nostrmq_target)?.substring(0, 20)}...`;
+                } else if (account.publish_method === 'direct') {
+                    const relayCount = account.relays ? account.relays.split(',').length : 0;
+                    methodInfo = `Direct: ${relayCount > 0 ? relayCount + ' relay(s)' : 'default relays'}`;
+                } else {
+                    methodInfo = `API: ${account.api_endpoint || 'default'}`;
+                }
+                    
+                document.getElementById('accountInfo').innerHTML = 
+                    `NPub: ${account.npub.substring(0, 20)}... | ${methodInfo}`;
+            }
+        }
+        
+        // Handle account selection change
+        document.getElementById('selectedAccount').addEventListener('change', async (e) => {
+            const newAccountId = parseInt(e.target.value);
+            console.log('Account changed from', selectedAccountId, 'to', newAccountId);
+            
+            if (newAccountId && !isNaN(newAccountId)) {
+                selectedAccountId = newAccountId;
+                try {
+                    await fetch(`/api/accounts/${selectedAccountId}/activate`, { method: 'POST' });
+                    updateAccountInfo();
+                    console.log('About to reload posts for account:', selectedAccountId);
+                    await loadPosts(); // Reload posts for the selected account
+                } catch (error) {
+                    console.error('Error activating account:', error);
+                }
+            } else {
+                selectedAccountId = null;
+                await loadPosts(); // Load all posts if no account selected
+            }
+        });
+        
+        // Add account modal handlers
+        document.getElementById('addAccountBtn').addEventListener('click', () => {
+            document.getElementById('addAccountModal').style.display = 'block';
+        });
+        
+        document.getElementById('cancelAddAccount').addEventListener('click', () => {
+            document.getElementById('addAccountModal').style.display = 'none';
+            document.getElementById('addAccountForm').reset();
+            // Reset form visibility
+            document.getElementById('apiEndpointGroup').style.display = 'block';
+            document.getElementById('nostrmqTargetGroup').style.display = 'none';
+        });
+        
+        // Handle publish method selection
+        document.getElementById('publishMethod').addEventListener('change', (e) => {
+            const method = e.target.value;
+            const apiGroup = document.getElementById('apiEndpointGroup');
+            const nostrmqGroup = document.getElementById('nostrmqTargetGroup');
+            const directKeyGroup = document.getElementById('directKeyGroup');
+            const relaysGroup = document.getElementById('relaysGroup');
+            
+            // Hide all groups first
+            apiGroup.style.display = 'none';
+            nostrmqGroup.style.display = 'none';
+            directKeyGroup.style.display = 'none';
+            relaysGroup.style.display = 'none';
+            
+            // Show relevant groups based on method
+            if (method === 'nostrmq') {
+                nostrmqGroup.style.display = 'block';
+            } else if (method === 'direct') {
+                directKeyGroup.style.display = 'block';
+                relaysGroup.style.display = 'block';
+            } else {
+                apiGroup.style.display = 'block';
+            }
+        });
+        
+        // Handle add account form submission
+        document.getElementById('addAccountForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const publishMethod = formData.get('publishMethod');
+            
+            try {
+                const response = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: formData.get('accountName'),
+                        npub: formData.get('accountNpub'),
+                        nsec: publishMethod === 'direct' ? formData.get('accountNsec') || null : null,
+                        publishMethod: publishMethod,
+                        apiEndpoint: publishMethod === 'api' ? formData.get('accountApiEndpoint') || null : null,
+                        nostrmqTarget: publishMethod === 'nostrmq' ? formData.get('nostrmqTarget') || null : null,
+                        relays: publishMethod === 'direct' ? formData.get('relays') || null : null
+                    })
+                });
+                
+                if (response.ok) {
+                    document.getElementById('addAccountModal').style.display = 'none';
+                    document.getElementById('addAccountForm').reset();
+                    await loadAccounts();
+                    await loadPosts(); // Reload posts after adding account
+                    alert('Account added successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(`Error: ${error.error}`);
+                }
+            } catch (error) {
+                alert('Error adding account: ' + error.message);
+            }
+        });
+        
+        // Handle schedule type changes
+        document.getElementById('scheduleType').addEventListener('change', (e) => {
+            const scheduleType = e.target.value;
+            const scheduleTimeGroup = document.getElementById('scheduleTimeGroup');
+            const repeatCountGroup = document.getElementById('repeatCountGroup');
+            const scheduleHint = document.getElementById('scheduleHint');
+            const hintText = document.getElementById('hintText');
+            const scheduledForInput = document.getElementById('scheduledFor');
+            
+            // Reset visibility
+            scheduleTimeGroup.style.display = 'none';
+            repeatCountGroup.style.display = 'none';
+            scheduleHint.style.display = 'none';
+            scheduledForInput.required = false;
+            
+            switch(scheduleType) {
+                case 'immediate':
+                    hintText.textContent = 'Post will be published immediately';
+                    scheduleHint.style.display = 'block';
+                    break;
+                    
+                case 'immediate-repeat':
+                    repeatCountGroup.style.display = 'block';
+                    updateRepeatHint();
+                    scheduleHint.style.display = 'block';
+                    break;
+                    
+                case 'scheduled':
+                    scheduleTimeGroup.style.display = 'block';
+                    scheduledForInput.required = true;
+                    hintText.textContent = 'Post will be published at the scheduled time';
+                    scheduleHint.style.display = 'block';
+                    break;
+                    
+                case 'scheduled-repeat':
+                    scheduleTimeGroup.style.display = 'block';
+                    repeatCountGroup.style.display = 'block';
+                    scheduledForInput.required = true;
+                    updateRepeatHint();
+                    scheduleHint.style.display = 'block';
+                    break;
+            }
+        });
+        
+        // Update hint text based on interval hours
+        function updateRepeatHint() {
+            const intervalHours = document.getElementById('intervalHours').value || 3;
+            const scheduleType = document.getElementById('scheduleType').value;
+            const hintText = document.getElementById('hintText');
+            
+            if (scheduleType === 'immediate-repeat') {
+                hintText.textContent = `Post will be published immediately and then repeated every ${intervalHours} hour${intervalHours != 1 ? 's' : ''}`;
+            } else if (scheduleType === 'scheduled-repeat') {
+                hintText.textContent = `Post will be published at the scheduled time and then repeated every ${intervalHours} hour${intervalHours != 1 ? 's' : ''}`;
+            }
+            
+            // Update repeat count options to reflect the interval
+            updateRepeatOptions();
+        }
+        
+        // Update repeat count options based on interval hours
+        function updateRepeatOptions() {
+            const intervalHours = parseInt(document.getElementById('intervalHours').value) || 3;
+            const repeatSelect = document.getElementById('repeatCount');
+            const currentValue = repeatSelect.value;
+            
+            // Calculate repeats for 1, 2, and 7 days
+            const oneDayRepeats = Math.floor(24 / intervalHours);
+            const twoDayRepeats = Math.floor(48 / intervalHours);
+            const sevenDayRepeats = Math.floor(168 / intervalHours);
+            
+            // Update options
+            repeatSelect.innerHTML = `
+                <option value="${oneDayRepeats}">${oneDayRepeats} times (1 day @ ${intervalHours}hr intervals)</option>
+                <option value="${twoDayRepeats}">${twoDayRepeats} times (2 days @ ${intervalHours}hr intervals)</option>
+                <option value="${sevenDayRepeats}">${sevenDayRepeats} times (7 days @ ${intervalHours}hr intervals)</option>
+                <option value="custom">Custom</option>
+            `;
+            
+            // Restore previous selection if it was custom
+            if (currentValue === 'custom') {
+                repeatSelect.value = 'custom';
+                document.getElementById('customRepeatCount').style.display = 'block';
+            }
+        }
+        
+        // Handle interval hours change
+        document.getElementById('intervalHours').addEventListener('input', updateRepeatHint);
+        
+        // Handle custom repeat count
+        document.getElementById('repeatCount').addEventListener('change', (e) => {
+            const customInput = document.getElementById('customRepeatCount');
+            if (e.target.value === 'custom') {
+                customInput.style.display = 'block';
+                customInput.required = true;
+            } else {
+                customInput.style.display = 'none';
+                customInput.required = false;
+            }
+        });
+        
+        // Load posts
+        async function loadPosts() {
+            try {
+                let url = '/api/posts';
+                if (selectedAccountId) {
+                    url += `?accountId=${selectedAccountId}`;
+                }
+                console.log('Loading posts from:', url, 'for account:', selectedAccountId);
+                const response = await fetch(url);
+                const posts = await response.json();
+                console.log('Loaded', posts.length, 'posts');
+                
+                const container = document.getElementById('postsContainer');
+                
+                if (posts.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No scheduled posts yet. Create your first post above!</div>';
+                    return;
+                }
+                
+                container.innerHTML = '<div class="posts-grid">' + 
+                    posts.map(post => `
+                        <div class="post-card">
+                            <div class="post-header">
+                                <span class="post-status status-${post.status}">${post.status}</span>
+                                <span style="font-size: 12px; color: #666;">${post.publish_method ? `[${post.publish_method.toUpperCase()}]` : '[API]'}</span>
+                                <span>#${post.id}</span>
+                            </div>
+                            <div class="post-time">📅 ${new Date(post.scheduled_for).toLocaleString()}</div>
+                            <div class="post-content">${escapeHtml(post.content)}</div>
+                            ${post.status === 'pending' ? `
+                                <div class="post-actions">
+                                    <button class="publish-btn" onclick="publishNow(${post.id})">Post Now</button>
+                                    <button class="delete-btn" onclick="deletePost(${post.id})">Delete</button>
+                                </div>
+                            ` : ''}
+                            ${post.error_message ? `<div style="color: red; margin-top: 10px; font-size: 14px;">Error: ${escapeHtml(post.error_message)}</div>` : ''}
+                        </div>
+                    `).join('') + '</div>';
+            } catch (error) {
+                document.getElementById('postsContainer').innerHTML = 
+                    '<div class="empty-state">Error loading posts. Please refresh the page.</div>';
+            }
+        }
+        
+        // Escape HTML to prevent XSS
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+        
+        // Delete post
+        async function deletePost(id) {
+            if (!confirm('Are you sure you want to delete this post?')) return;
+            
+            try {
+                await fetch(`/api/posts/${id}`, { method: 'DELETE' });
+                loadPosts();
+            } catch (error) {
+                alert('Error deleting post');
+            }
+        }
+        
+        // Publish post now
+        async function publishNow(id) {
+            if (!confirm('Are you sure you want to publish this post immediately?')) return;
+            
+            try {
+                const response = await fetch(`/api/posts/${id}/publish`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(`Error publishing post: ${error.error}`);
+                } else {
+                    alert('Post published successfully!');
+                    loadPosts();
+                }
+            } catch (error) {
+                alert('Error publishing post: ' + error.message);
+            }
+        }
+        
+        // Handle form submission
+        document.getElementById('postForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const scheduleType = formData.get('scheduleType');
+            const content = formData.get('content');
+            const publishMethod = formData.get('postPublishMethod');
+            const scheduledFor = formData.get('scheduledFor');
+            const repeatCount = formData.get('repeatCount');
+            const customRepeatCount = formData.get('customRepeatCount');
+            const intervalHours = formData.get('intervalHours');
+            
+            try {
+                let finalRepeatCount = 0;
+                if (scheduleType.includes('repeat')) {
+                    if (repeatCount === 'custom') {
+                        finalRepeatCount = parseInt(customRepeatCount);
+                    } else {
+                        finalRepeatCount = parseInt(repeatCount);
+                    }
+                }
+                
+                // Determine the start time
+                let startTime = new Date();
+                if (scheduleType === 'scheduled' || scheduleType === 'scheduled-repeat') {
+                    startTime = new Date(scheduledFor);
+                }
+                // For immediate posts, ensure we use current time (not the scheduled datetime field)
+                if (scheduleType === 'immediate' || scheduleType === 'immediate-repeat') {
+                    startTime = new Date(); // Always use current time for immediate posts
+                }
+                
+                // Create the post(s)
+                if (finalRepeatCount > 0) {
+                    // Use the custom interval hours or default to 3
+                    const hours = parseInt(intervalHours) || 3;
+                    
+                    await fetch('/api/posts/batch-custom', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            content,
+                            startTime: startTime.toISOString(),
+                            intervalHours: hours,
+                            repeatCount: finalRepeatCount,
+                            accountId: selectedAccountId,
+                            publishMethod: publishMethod
+                        })
+                    });
+                } else {
+                    // Single post (immediate or scheduled)
+                    await fetch('/api/posts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            content,
+                            scheduledFor: startTime.toISOString(),
+                            accountId: selectedAccountId,
+                            publishMethod: publishMethod
+                        })
+                    });
+                }
+                
+                e.target.reset();
+                const now = new Date();
+                now.setHours(now.getHours() + 1);
+                document.getElementById('scheduledFor').value = now.toISOString().slice(0, 16);
+                
+                // Reset form UI
+                document.getElementById('scheduleTimeGroup').style.display = 'none';
+                document.getElementById('repeatCountGroup').style.display = 'none';
+                document.getElementById('scheduleHint').style.display = 'none';
+                
+                loadPosts();
+                alert('Post(s) created successfully!');
+            } catch (error) {
+                alert('Error creating post: ' + error.message);
+            }
+        });
+        
+        // Load accounts and posts on page load
+        async function initializePage() {
+            await loadAccounts(); // Load accounts first
+            await loadPosts();    // Then load posts with the selected account
+        }
+        
+        initializePage();
+        
+        // Refresh posts every 30 seconds
+        setInterval(loadPosts, 30000);
+    </script>
+</body>
+</html>
