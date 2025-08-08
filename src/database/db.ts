@@ -29,7 +29,7 @@ class PostDatabase {
             name TEXT NOT NULL,
             npub TEXT NOT NULL UNIQUE,
             api_endpoint TEXT,
-            publish_method TEXT CHECK(publish_method IN ('api', 'nostrmq', 'direct')) DEFAULT 'api',
+            publish_method TEXT CHECK(publish_method IN ('api', 'nostrmq', 'direct')) DEFAULT 'direct',
             nostrmq_target TEXT,
             is_active BOOLEAN DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -55,7 +55,7 @@ class PostDatabase {
                 error_message TEXT,
                 api_endpoint TEXT,
                 account_id INTEGER,
-                publish_method TEXT CHECK(publish_method IN ('api', 'nostrmq', 'direct')) DEFAULT 'api',
+                publish_method TEXT CHECK(publish_method IN ('api', 'nostrmq', 'direct')) DEFAULT 'direct',
                 FOREIGN KEY (account_id) REFERENCES nostr_accounts(id)
               )
             `, (err) => {
@@ -87,7 +87,7 @@ class PostDatabase {
         
         // Add missing columns if they don't exist
         this.db.serialize(() => {
-          this.db.run("ALTER TABLE nostr_accounts ADD COLUMN publish_method TEXT DEFAULT 'api'", (err) => {
+          this.db.run("ALTER TABLE nostr_accounts ADD COLUMN publish_method TEXT DEFAULT 'direct'", (err) => {
             if (err && !err.message.includes('duplicate column')) {
               console.log('Could not add publish_method column (may already exist):', err.message);
             }
@@ -127,7 +127,7 @@ class PostDatabase {
           });
           
           // Add publish_method column to scheduled_posts if missing
-          this.db.run("ALTER TABLE scheduled_posts ADD COLUMN publish_method TEXT DEFAULT 'api'", (err) => {
+          this.db.run("ALTER TABLE scheduled_posts ADD COLUMN publish_method TEXT DEFAULT 'direct'", (err) => {
             if (err && !err.message.includes('duplicate column')) {
               console.log('Could not add publish_method column to scheduled_posts (may already exist):', err.message);
             } else if (!err) {
@@ -173,13 +173,13 @@ class PostDatabase {
       scheduledFor: scheduledFor.toISOString(),
       accountId,
       apiEndpoint,
-      publishMethod: publishMethod || 'api'
+      publishMethod: publishMethod || 'direct'
     });
     
     return new Promise((resolve, reject) => {
       this.db.run(
         `INSERT INTO scheduled_posts (content, scheduled_for, account_id, api_endpoint, publish_method) VALUES (?, ?, ?, ?, ?)`,
-        [content, scheduledFor.toISOString(), accountId || null, apiEndpoint || null, publishMethod || 'api'],
+        [content, scheduledFor.toISOString(), accountId || null, apiEndpoint || null, publishMethod || 'direct'],
         function(err) {
           if (err) {
             console.error('❌ Database insert error:', err);
@@ -197,7 +197,7 @@ class PostDatabase {
     return new Promise((resolve, reject) => {
       this.db.all(
         `SELECT * FROM scheduled_posts 
-         WHERE status = 'pending' AND scheduled_for <= datetime('now')
+         WHERE status = 'pending' AND datetime(scheduled_for) <= datetime('now')
          ORDER BY scheduled_for ASC`,
         [],
         (err, rows) => {
@@ -304,7 +304,7 @@ class PostDatabase {
   }
 
   // Account management methods
-  addAccount(name: string, npub: string, publishMethod: 'api' | 'nostrmq' | 'direct' = 'api', apiEndpoint?: string, nostrmqTarget?: string, nsec?: string, relays?: string, keychainRef?: string): Promise<number> {
+  addAccount(name: string, npub: string, publishMethod: 'api' | 'nostrmq' | 'direct' = 'direct', apiEndpoint?: string, nostrmqTarget?: string, nsec?: string, relays?: string, keychainRef?: string): Promise<number> {
     return new Promise((resolve, reject) => {
       this.db.run(
         'INSERT INTO nostr_accounts (name, npub, api_endpoint, publish_method, nostrmq_target, nsec, relays, keychain_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',

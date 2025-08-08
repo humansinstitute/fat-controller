@@ -277,9 +277,9 @@
                     <div class="form-group">
                         <label for="postPublishMethod">Publishing Method</label>
                         <select id="postPublishMethod" name="postPublishMethod" required>
+                            <option value="direct" selected>Direct to Relays</option>
                             <option value="api">Direct API</option>
                             <option value="nostrmq">NostrMQ</option>
-                            <option value="direct">Direct to Relays</option>
                         </select>
                     </div>
                     
@@ -329,21 +329,24 @@
                     <input type="text" id="accountName" name="accountName" placeholder="e.g., Personal, Work, Alt" required>
                 </div>
                 
-                <div class="form-group">
+                <div class="form-group" id="npubGroup" style="display: none;">
                     <label for="accountNpub">Nostr Public Key (npub)</label>
-                    <input type="text" id="accountNpub" name="accountNpub" placeholder="npub1..." required>
+                    <input type="text" id="accountNpub" name="accountNpub" placeholder="npub1...">
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        📝 Required for API and NostrMQ methods (remote signers)
+                    </div>
                 </div>
                 
                 <div class="form-group">
                     <label for="publishMethod">Publishing Method</label>
                     <select id="publishMethod" name="publishMethod" required>
+                        <option value="direct" selected>Direct to Relays (enter nsec)</option>
                         <option value="api">Direct API</option>
                         <option value="nostrmq">NostrMQ</option>
-                        <option value="direct">Direct to Relays (with key)</option>
                     </select>
                 </div>
                 
-                <div class="form-group" id="apiEndpointGroup">
+                <div class="form-group" id="apiEndpointGroup" style="display: none;">
                     <label for="accountApiEndpoint">API Endpoint (optional)</label>
                     <input type="url" id="accountApiEndpoint" name="accountApiEndpoint" placeholder="http://localhost:3000/post/note">
                 </div>
@@ -356,15 +359,18 @@
                     </div>
                 </div>
                 
-                <div class="form-group" id="directKeyGroup" style="display: none;">
+                <div class="form-group" id="directKeyGroup">
                     <label for="accountNsec">Private Key (nsec)</label>
-                    <input type="password" id="accountNsec" name="accountNsec" placeholder="nsec1...">
+                    <input type="password" id="accountNsec" name="accountNsec" placeholder="nsec1..." required>
+                    <div id="nsecValidation" style="font-size: 12px; margin-top: 5px; display: none;">
+                        ✅ Valid key - npub automatically derived
+                    </div>
                     <div style="font-size: 12px; color: #666; margin-top: 5px;">
                         🔐 Your private key will be stored securely in macOS Keychain when available
                     </div>
                 </div>
                 
-                <div class="form-group" id="relaysGroup" style="display: none;">
+                <div class="form-group" id="relaysGroup">
                     <label for="relays">Relay URLs (comma-separated)</label>
                     <textarea id="relays" name="relays" placeholder="wss://relay.damus.io, wss://nos.lol, wss://relay.nostr.band" rows="3"></textarea>
                     <div style="font-size: 12px; color: #666; margin-top: 5px;">
@@ -463,25 +469,35 @@
         // Add account modal handlers
         document.getElementById('addAccountBtn').addEventListener('click', () => {
             document.getElementById('addAccountModal').style.display = 'block';
+            // Initialize form with direct method selected
+            document.getElementById('publishMethod').value = 'direct';
+            document.getElementById('publishMethod').dispatchEvent(new Event('change'));
         });
         
         document.getElementById('cancelAddAccount').addEventListener('click', () => {
             document.getElementById('addAccountModal').style.display = 'none';
             document.getElementById('addAccountForm').reset();
-            // Reset form visibility
-            document.getElementById('apiEndpointGroup').style.display = 'block';
+            // Reset form visibility to direct method default
+            document.getElementById('publishMethod').value = 'direct';
+            document.getElementById('npubGroup').style.display = 'none';
+            document.getElementById('apiEndpointGroup').style.display = 'none';
             document.getElementById('nostrmqTargetGroup').style.display = 'none';
+            document.getElementById('directKeyGroup').style.display = 'block';
+            document.getElementById('relaysGroup').style.display = 'block';
+            document.getElementById('accountNpub').required = false;
         });
         
         // Handle publish method selection
         document.getElementById('publishMethod').addEventListener('change', (e) => {
             const method = e.target.value;
+            const npubGroup = document.getElementById('npubGroup');
             const apiGroup = document.getElementById('apiEndpointGroup');
             const nostrmqGroup = document.getElementById('nostrmqTargetGroup');
             const directKeyGroup = document.getElementById('directKeyGroup');
             const relaysGroup = document.getElementById('relaysGroup');
             
             // Hide all groups first
+            npubGroup.style.display = 'none';
             apiGroup.style.display = 'none';
             nostrmqGroup.style.display = 'none';
             directKeyGroup.style.display = 'none';
@@ -489,21 +505,86 @@
             
             // Show relevant groups based on method
             if (method === 'nostrmq') {
+                npubGroup.style.display = 'block';
                 nostrmqGroup.style.display = 'block';
+                document.getElementById('accountNpub').required = true;
             } else if (method === 'direct') {
                 directKeyGroup.style.display = 'block';
                 relaysGroup.style.display = 'block';
+                document.getElementById('accountNpub').required = false;
             } else {
+                npubGroup.style.display = 'block';
                 apiGroup.style.display = 'block';
+                document.getElementById('accountNpub').required = true;
             }
         });
         
+        // Auto-derive npub from nsec for direct method
+        document.getElementById('accountNsec').addEventListener('input', (e) => {
+            const nsec = e.target.value.trim();
+            const publishMethod = document.getElementById('publishMethod').value;
+            const validation = document.getElementById('nsecValidation');
+            
+            // Hide validation message initially
+            validation.style.display = 'none';
+            
+            if (publishMethod === 'direct' && nsec) {
+                try {
+                    // Validate nsec format
+                    if (!nsec.startsWith('nsec1') || nsec.length < 20) {
+                        return;
+                    }
+                    
+                    // Derive npub from nsec using nostr-tools
+                    const { nip19, getPublicKey } = window.NostrTools;
+                    const { type, data } = nip19.decode(nsec);
+                    
+                    if (type === 'nsec') {
+                        const pubkey = getPublicKey(data);
+                        const npub = nip19.npubEncode(pubkey);
+                        
+                        // Set the derived npub (for internal use, not visible to user for direct method)
+                        document.getElementById('accountNpub').value = npub;
+                        
+                        // Show success validation
+                        validation.style.display = 'block';
+                        validation.style.color = '#28a745';
+                        
+                        console.log('Auto-derived npub from nsec:', npub);
+                    }
+                } catch (error) {
+                    console.log('Invalid nsec format');
+                    document.getElementById('accountNpub').value = '';
+                    validation.style.display = 'none';
+                }
+            }
+        });
+
         // Handle add account form submission
         document.getElementById('addAccountForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const formData = new FormData(e.target);
             const publishMethod = formData.get('publishMethod');
+            let npub = formData.get('accountNpub');
+            
+            // For direct method, ensure npub is derived from nsec
+            if (publishMethod === 'direct') {
+                const nsec = formData.get('accountNsec');
+                if (nsec && nsec.startsWith('nsec1')) {
+                    try {
+                        const { nip19, getPublicKey } = window.NostrTools;
+                        const { type, data } = nip19.decode(nsec);
+                        if (type === 'nsec') {
+                            const pubkey = getPublicKey(data);
+                            npub = nip19.npubEncode(pubkey);
+                        }
+                    } catch (error) {
+                        alert('Invalid nsec format');
+                        return;
+                    }
+                }
+            }
             
             try {
                 const response = await fetch('/api/accounts', {
@@ -511,7 +592,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         name: formData.get('accountName'),
-                        npub: formData.get('accountNpub'),
+                        npub: npub,
                         nsec: publishMethod === 'direct' ? formData.get('accountNsec') || null : null,
                         publishMethod: publishMethod,
                         apiEndpoint: publishMethod === 'api' ? formData.get('accountApiEndpoint') || null : null,
@@ -816,5 +897,8 @@
         // Refresh posts every 30 seconds
         setInterval(loadPosts, 30000);
     </script>
+    
+    <!-- Nostr Tools for key derivation -->
+    <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
 </body>
 </html>

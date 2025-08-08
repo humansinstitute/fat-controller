@@ -74,7 +74,7 @@ export class WebServer {
         const scheduledDate = new Date(scheduledFor);
         console.log(`⏰ Scheduled date parsed: ${scheduledDate.toISOString()}`);
         
-        const method = publishMethod === 'nostrmq' ? 'nostrmq' : (publishMethod === 'direct' ? 'direct' : 'api');
+        const method = publishMethod === 'nostrmq' ? 'nostrmq' : (publishMethod === 'api' ? 'api' : 'direct');
         const id = await this.db.addPost(content, scheduledDate, accountId, apiEndpoint, method);
         console.log(`✅ Created single post with ID: ${id} using method: ${method}`);
         
@@ -125,7 +125,7 @@ export class WebServer {
         const now = new Date();
         const times = [0, 3, 6, 9, 12, 15, 18, 21];
         const ids = [];
-        const method = publishMethod === 'nostrmq' ? 'nostrmq' : (publishMethod === 'direct' ? 'direct' : 'api');
+        const method = publishMethod === 'nostrmq' ? 'nostrmq' : (publishMethod === 'api' ? 'api' : 'direct');
         
         for (const hours of times) {
           const scheduledFor = new Date(now);
@@ -177,7 +177,7 @@ export class WebServer {
         console.log(`⏰ Start time parsed: ${start.toISOString()}`);
         
         const ids = [];
-        const method = publishMethod === 'nostrmq' ? 'nostrmq' : (publishMethod === 'direct' ? 'direct' : 'api');
+        const method = publishMethod === 'nostrmq' ? 'nostrmq' : (publishMethod === 'api' ? 'api' : 'direct');
         
         for (const hoursOffset of computedIntervals) {
           const scheduledFor = new Date(start);
@@ -334,10 +334,10 @@ export class WebServer {
         }
         
         // Add account to database first to get the ID
-        const id = await this.db.addAccount(name, npub, publishMethod as 'api' | 'nostrmq' | 'direct', apiEndpoint, convertedTarget, undefined, relays, undefined);
+        const id = await this.db.addAccount(name, npub, (publishMethod as 'api' | 'nostrmq' | 'direct') || 'direct', apiEndpoint, convertedTarget, undefined, relays, undefined);
         
-        // Now store the key in keychain if we have one
-        if (publishMethod === 'direct' && nsec && id) {
+        // Now store the key in keychain if we have one (required for direct publishing)
+        if (nsec && id) {
           const keychainAvailable = await isKeychainAvailable();
           if (keychainAvailable) {
             storedInKeychain = await storeNsecInKeychain(id, nsec);

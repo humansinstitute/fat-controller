@@ -1,5 +1,5 @@
 {
-  "name": "nostr-scheduler",
+  "name": "fat-controller",
   "version": "1.0.0",
   "description": "Schedule and release Nostr posts automatically",
   "main": "dist/index.js",
