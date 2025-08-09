@@ -48,7 +48,7 @@ program
         const status = post.status === 'published' ? '✅' : 
                       post.status === 'failed' ? '❌' : '⏰';
         const method = post.publish_method ? `[${post.publish_method.toUpperCase()}]` : '[API]';
-        console.log(`${status} ${method} [${post.id}] ${post.scheduled_for} - ${post.content.substring(0, 50)}...`);
+        console.log(`${status} ${method} [${post.id}] ${post.scheduled_for} - ${(post as any).content.substring(0, 50)}...`);
         if (post.error_message) {
           console.log(`   Error: ${post.error_message}`);
         }

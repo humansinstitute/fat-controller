@@ -39,15 +39,22 @@ export class PostScheduler {
       for (const post of pendingPosts) {
         try {
           console.log(`[${new Date().toISOString()}] 🕒 Scheduled publish for post ${post.id}`);
-          console.log(`📝 Content: "${post.content.substring(0, 50)}..."`);
+          console.log(`📝 Content: "${(post as any).content.substring(0, 50)}..."`);
           console.log(`⏰ Scheduled for: ${post.scheduled_for}`);
           console.log(`🔗 Account ID: ${post.account_id || 'none'}`);
           console.log(`⚙️ API endpoint: ${post.api_endpoint || 'default'}`);
           
-          await publishToNostr(post.content, post.api_endpoint, post.id);
+          const eventId = await publishToNostr((post as any).content, post.api_endpoint, post.id);
           
           await this.db.markAsPublished(post.id!);
-          console.log(`✅ Post ${post.id} published successfully at ${new Date().toISOString()}`);
+          
+          // Update with event ID if we got one
+          if (eventId) {
+            await this.db.updatePostEventDetails(post.id!, eventId);
+            console.log(`✅ Post ${post.id} published with event ID: ${eventId} at ${new Date().toISOString()}`);
+          } else {
+            console.log(`✅ Post ${post.id} published successfully at ${new Date().toISOString()}`);
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
           await this.db.markAsFailed(post.id!, errorMessage);
@@ -62,8 +69,7 @@ export class PostScheduler {
   
   async publishNow(postId: number): Promise<void> {
     console.log(`[${new Date().toISOString()}] Manual publish requested for post ${postId}`);
-    const posts = await this.db.getAllPosts();
-    const post = posts.find(p => p.id === postId);
+    const post = await this.db.getPost(postId);
     
     if (!post) {
       throw new Error(`Post ${postId} not found`);
@@ -79,9 +85,16 @@ export class PostScheduler {
       console.log(`🔗 Account ID: ${post.account_id || 'none'}`);
       console.log(`⚙️ API endpoint: ${post.api_endpoint || 'default'}`);
       
-      await publishToNostr(post.content, post.api_endpoint, post.id);
+      const eventId = await publishToNostr(post.content, post.api_endpoint, post.id);
       await this.db.markAsPublished(post.id!);
-      console.log(`✅ Post ${post.id} published successfully via manual trigger`);
+      
+      // Update with event ID if we got one
+      if (eventId) {
+        await this.db.updatePostEventDetails(post.id!, eventId);
+        console.log(`✅ Post ${post.id} published with event ID: ${eventId}`);
+      } else {
+        console.log(`✅ Post ${post.id} published successfully via manual trigger`);
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       await this.db.markAsFailed(post.id!, errorMessage);

@@ -1,3 +1,32 @@
+export interface Note {
+  id?: number;
+  content: string;
+  title?: string;
+  account_id: number;
+  created_at: string;
+  metadata?: string; // JSON field for additional data
+}
+
+export interface NoteWithCounts extends Note {
+  published_count: number;
+  upcoming_count: number;
+}
+
+export interface Post {
+  id?: number;
+  note_id: number;
+  scheduled_for: string;
+  published_at?: string;
+  status: 'pending' | 'published' | 'failed';
+  error_message?: string;
+  event_id?: string;
+  primal_url?: string;
+  api_endpoint?: string;
+  account_id?: number;
+  publish_method?: 'api' | 'nostrmq' | 'direct';
+}
+
+// Legacy interface for backward compatibility during transition
 export interface ScheduledPost {
   id?: number;
   content: string;

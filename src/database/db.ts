@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { ScheduledPost, NostrAccount } from './schema.js';
+import { ScheduledPost, NostrAccount, Note, NoteWithCounts, Post } from './schema.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { mkdirSync } from 'fs';
@@ -32,7 +32,10 @@ class PostDatabase {
             publish_method TEXT CHECK(publish_method IN ('api', 'nostrmq', 'direct')) DEFAULT 'direct',
             nostrmq_target TEXT,
             is_active BOOLEAN DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            keychain_ref TEXT,
+            nsec TEXT,
+            relays TEXT
           )
         `, (err) => {
           if (err) {
@@ -40,22 +43,38 @@ class PostDatabase {
             return;
           }
           
-          // Migration: Add new columns if they don't exist
-          this.migrateDatabase().then(() => {
+          // Create notes table
+          this.db.run(`
+            CREATE TABLE IF NOT EXISTS notes (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              content TEXT NOT NULL,
+              title TEXT,
+              account_id INTEGER NOT NULL,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              metadata TEXT,
+              FOREIGN KEY (account_id) REFERENCES nostr_accounts(id)
+            )
+          `, (err) => {
+            if (err) {
+              reject(err);
+              return;
+            }
             
-            // Create posts table with account reference
+            // Create posts table (replacing scheduled_posts)
             this.db.run(`
-              CREATE TABLE IF NOT EXISTS scheduled_posts (
+              CREATE TABLE IF NOT EXISTS posts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                note_id INTEGER NOT NULL,
                 scheduled_for DATETIME NOT NULL,
                 published_at DATETIME,
                 status TEXT CHECK(status IN ('pending', 'published', 'failed')) DEFAULT 'pending',
                 error_message TEXT,
+                event_id TEXT,
+                primal_url TEXT,
                 api_endpoint TEXT,
                 account_id INTEGER,
                 publish_method TEXT CHECK(publish_method IN ('api', 'nostrmq', 'direct')) DEFAULT 'direct',
+                FOREIGN KEY (note_id) REFERENCES notes(id),
                 FOREIGN KEY (account_id) REFERENCES nostr_accounts(id)
               )
             `, (err) => {
@@ -64,111 +83,123 @@ class PostDatabase {
                 return;
               }
               
-              // Check if we need to migrate from env var to default account
-              this.migrateDefaultAccount().then(() => {
-                resolve();
-              }).catch(reject);
+              // Create indexes
+              this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_account_id ON notes(account_id)');
+              this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at)');
+              this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_note_id ON posts(note_id)');
+              this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_event_id ON posts(event_id)');
+              this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)');
+              this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_scheduled_for ON posts(scheduled_for)');
+              
+              resolve();
             });
-          }).catch(reject);
+          });
         });
       });
     });
   }
 
-  private async migrateDatabase(): Promise<void> {
+  // Note management methods
+  addNote(content: string, title: string | null, accountId: number, metadata?: string): Promise<number> {
     return new Promise((resolve, reject) => {
-      // Check if publish_method column exists
-      this.db.get("PRAGMA table_info(nostr_accounts)", [], (err, result) => {
-        if (err) {
-          console.log('Error checking table schema:', err);
-          resolve(); // Continue even if we can't check
-          return;
+      this.db.run(
+        'INSERT INTO notes (content, title, account_id, metadata) VALUES (?, ?, ?, ?)',
+        [content, title, accountId, metadata || null],
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
         }
-        
-        // Add missing columns if they don't exist
-        this.db.serialize(() => {
-          this.db.run("ALTER TABLE nostr_accounts ADD COLUMN publish_method TEXT DEFAULT 'direct'", (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-              console.log('Could not add publish_method column (may already exist):', err.message);
-            }
-          });
-          
-          this.db.run("ALTER TABLE nostr_accounts ADD COLUMN nostrmq_target TEXT", (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-              console.log('Could not add nostrmq_target column (may already exist):', err.message);
-            }
-          });
-          
-          this.db.run("ALTER TABLE nostr_accounts ADD COLUMN nsec TEXT", (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-              console.log('Could not add nsec column (may already exist):', err.message);
-            }
-          });
-          
-          this.db.run("ALTER TABLE nostr_accounts ADD COLUMN relays TEXT", (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-              console.log('Could not add relays column (may already exist):', err.message);
-            }
-          });
-          
-          this.db.run("ALTER TABLE nostr_accounts ADD COLUMN keychain_ref TEXT", (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-              console.log('Could not add keychain_ref column (may already exist):', err.message);
-            }
-          });
-          
-          // Also migrate scheduled_posts table to add account_id column if missing
-          this.db.run("ALTER TABLE scheduled_posts ADD COLUMN account_id INTEGER", (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-              console.log('Could not add account_id column to scheduled_posts (may already exist):', err.message);
-            } else if (!err) {
-              console.log('✅ Added account_id column to scheduled_posts table');
-            }
-          });
-          
-          // Add publish_method column to scheduled_posts if missing
-          this.db.run("ALTER TABLE scheduled_posts ADD COLUMN publish_method TEXT DEFAULT 'direct'", (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-              console.log('Could not add publish_method column to scheduled_posts (may already exist):', err.message);
-            } else if (!err) {
-              console.log('✅ Added publish_method column to scheduled_posts table');
-            }
-          });
-          
-          resolve();
-        });
+      );
+    });
+  }
+
+  getNotesWithCounts(accountId?: number): Promise<NoteWithCounts[]> {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT 
+          n.*,
+          COUNT(CASE WHEN p.status = 'published' THEN 1 END) as published_count,
+          COUNT(CASE WHEN p.status = 'pending' THEN 1 END) as upcoming_count
+        FROM notes n
+        LEFT JOIN posts p ON n.id = p.note_id
+      `;
+      
+      const params: any[] = [];
+      if (accountId) {
+        query += ' WHERE n.account_id = ?';
+        params.push(accountId);
+      }
+      
+      query += ' GROUP BY n.id ORDER BY n.created_at DESC';
+      
+      this.db.all(query, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows as NoteWithCounts[]);
       });
     });
   }
 
-  private async migrateDefaultAccount(): Promise<void> {
+  getNoteWithPosts(noteId: number): Promise<{note: Note | null, posts: Post[]}> {
     return new Promise((resolve, reject) => {
-      // Check if any accounts exist
-      this.db.get('SELECT COUNT(*) as count FROM nostr_accounts', [], (err, row: any) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        
-        if (row.count === 0 && process.env.NOSTR_NPUB) {
-          // Create default account from env var
-          this.db.run(
-            'INSERT INTO nostr_accounts (name, npub, api_endpoint, publish_method, is_active) VALUES (?, ?, ?, ?, ?)',
-            ['Default Account', process.env.NOSTR_NPUB, process.env.NOSTR_API_ENDPOINT, 'api', 1],
-            (err) => {
+      // Get the note
+      this.db.get(
+        'SELECT * FROM notes WHERE id = ?',
+        [noteId],
+        (err, note) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          
+          if (!note) {
+            resolve({ note: null, posts: [] });
+            return;
+          }
+          
+          // Get all posts for this note
+          this.db.all(
+            'SELECT * FROM posts WHERE note_id = ? ORDER BY scheduled_for ASC',
+            [noteId],
+            (err, posts) => {
               if (err) reject(err);
-              else resolve();
+              else resolve({ note: note as Note, posts: posts as Post[] });
             }
           );
-        } else {
-          resolve();
         }
-      });
+      );
     });
   }
 
+  schedulePostFromNote(noteId: number, scheduledFor: Date, accountId: number, apiEndpoint?: string, publishMethod?: 'api' | 'nostrmq' | 'direct'): Promise<number> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'INSERT INTO posts (note_id, scheduled_for, account_id, api_endpoint, publish_method) VALUES (?, ?, ?, ?, ?)',
+        [noteId, scheduledFor.toISOString(), accountId, apiEndpoint || null, publishMethod || 'direct'],
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
+        }
+      );
+    });
+  }
+
+  updatePostEventDetails(postId: number, eventId: string, primalUrl?: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const url = primalUrl || `https://primal.net/e/${eventId}`;
+      this.db.run(
+        'UPDATE posts SET event_id = ?, primal_url = ? WHERE id = ?',
+        [eventId, url, postId],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  // Legacy method - creates a note and immediately schedules a post
   addPost(content: string, scheduledFor: Date, accountId?: number, apiEndpoint?: string, publishMethod?: 'api' | 'nostrmq' | 'direct'): Promise<number> {
-    console.log('💾 Database addPost called:', {
+    console.log('💾 Database addPost called (legacy):', {
       content: content.substring(0, 50) + '...',
       scheduledFor: scheduledFor.toISOString(),
       accountId,
@@ -176,36 +207,48 @@ class PostDatabase {
       publishMethod: publishMethod || 'direct'
     });
     
-    return new Promise((resolve, reject) => {
-      this.db.run(
-        `INSERT INTO scheduled_posts (content, scheduled_for, account_id, api_endpoint, publish_method) VALUES (?, ?, ?, ?, ?)`,
-        [content, scheduledFor.toISOString(), accountId || null, apiEndpoint || null, publishMethod || 'direct'],
-        function(err) {
-          if (err) {
-            console.error('❌ Database insert error:', err);
-            reject(err);
-          } else {
-            console.log(`✅ Database insert success, ID: ${this.lastID}`);
-            resolve(this.lastID);
-          }
-        }
-      );
+    return new Promise(async (resolve, reject) => {
+      try {
+        // First create a note
+        const noteId = await this.addNote(content, null, accountId || 1);
+        
+        // Then schedule a post from that note
+        const postId = await this.schedulePostFromNote(
+          noteId,
+          scheduledFor,
+          accountId || 1,
+          apiEndpoint,
+          publishMethod
+        );
+        
+        console.log(`✅ Created note ${noteId} and post ${postId}`);
+        resolve(postId);
+      } catch (err) {
+        console.error('❌ Database insert error:', err);
+        reject(err);
+      }
     });
   }
 
-  getPendingPosts(): Promise<ScheduledPost[]> {
+  getPendingPosts(): Promise<Post[]> {
     return new Promise((resolve, reject) => {
       this.db.all(
-        `SELECT * FROM scheduled_posts 
-         WHERE status = 'pending' AND datetime(scheduled_for) <= datetime('now')
-         ORDER BY scheduled_for ASC`,
+        `SELECT p.*, n.content 
+         FROM posts p
+         JOIN notes n ON p.note_id = n.id
+         WHERE p.status = 'pending' AND datetime(p.scheduled_for) <= datetime('now')
+         ORDER BY p.scheduled_for ASC`,
         [],
         (err, rows) => {
           if (err) {
             console.error('❌ Database getPendingPosts error:', err);
             reject(err);
           } else {
-            const posts = rows as ScheduledPost[];
+            // Transform to include content in post object for backward compatibility
+            const posts = (rows as any[]).map(row => ({
+              ...row,
+              content: row.content // Add content from joined note
+            }));
             console.log(`🔍 getPendingPosts found ${posts.length} posts ready to publish`);
             if (posts.length > 0) {
               posts.forEach(post => {
@@ -219,39 +262,52 @@ class PostDatabase {
     });
   }
 
-  getUpcomingPosts(): Promise<ScheduledPost[]> {
+  getUpcomingPosts(): Promise<Post[]> {
     return new Promise((resolve, reject) => {
       this.db.all(
-        `SELECT * FROM scheduled_posts 
-         WHERE status = 'pending'
-         ORDER BY scheduled_for ASC`,
+        `SELECT p.*, n.content
+         FROM posts p
+         JOIN notes n ON p.note_id = n.id
+         WHERE p.status = 'pending'
+         ORDER BY p.scheduled_for ASC`,
         [],
         (err, rows) => {
           if (err) reject(err);
-          else resolve(rows as ScheduledPost[]);
+          else {
+            // Transform to include content for backward compatibility
+            const posts = (rows as any[]).map(row => ({
+              ...row,
+              content: row.content
+            }));
+            resolve(posts);
+          }
         }
       );
     });
   }
 
-  getAllPosts(accountId?: number): Promise<ScheduledPost[]> {
+  getAllPosts(accountId?: number): Promise<Post[]> {
     return new Promise((resolve, reject) => {
-      let query = `SELECT * FROM scheduled_posts`;
+      let query = `SELECT p.*, n.content FROM posts p JOIN notes n ON p.note_id = n.id`;
       let params: any[] = [];
       
       if (accountId) {
-        query += ` WHERE account_id = ?`;
+        query += ` WHERE p.account_id = ?`;
         params = [accountId];
       }
       
-      query += ` ORDER BY scheduled_for DESC`;
+      query += ` ORDER BY p.scheduled_for DESC`;
       
       this.db.all(query, params, (err, rows) => {
         if (err) {
           console.error('❌ Database getAllPosts error:', err);
           reject(err);
         } else {
-          const posts = rows as ScheduledPost[];
+          // Transform to include content for backward compatibility
+          const posts = (rows as any[]).map(row => ({
+            ...row,
+            content: row.content
+          }));
           const filterMsg = accountId ? ` for account ${accountId}` : '';
           console.log(`📊 getAllPosts found ${posts.length} posts${filterMsg} in database`);
           resolve(posts);
@@ -263,7 +319,7 @@ class PostDatabase {
   markAsPublished(id: number): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.run(
-        `UPDATE scheduled_posts 
+        `UPDATE posts 
          SET status = 'published', published_at = datetime('now')
          WHERE id = ?`,
         [id],
@@ -278,7 +334,7 @@ class PostDatabase {
   markAsFailed(id: number, errorMessage: string): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.run(
-        `UPDATE scheduled_posts 
+        `UPDATE posts 
          SET status = 'failed', error_message = ?
          WHERE id = ?`,
         [errorMessage, id],
@@ -293,13 +349,49 @@ class PostDatabase {
   deletePost(id: number): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.run(
-        'DELETE FROM scheduled_posts WHERE id = ?',
+        'DELETE FROM posts WHERE id = ?',
         [id],
         (err) => {
           if (err) reject(err);
           else resolve();
         }
       );
+    });
+  }
+
+  getPost(id: number): Promise<Post & {content: string} | null> {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        `SELECT p.*, n.content 
+         FROM posts p 
+         JOIN notes n ON p.note_id = n.id 
+         WHERE p.id = ?`,
+        [id],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row ? row as Post & {content: string} : null);
+        }
+      );
+    });
+  }
+
+  deleteNote(id: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.serialize(() => {
+        // First delete all posts for this note
+        this.db.run('DELETE FROM posts WHERE note_id = ?', [id], (err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+        });
+        
+        // Then delete the note
+        this.db.run('DELETE FROM notes WHERE id = ?', [id], (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
     });
   }
 
@@ -382,27 +474,29 @@ class PostDatabase {
 
   deleteAccount(id: number): Promise<void> {
     return new Promise((resolve, reject) => {
-      // First delete all posts for this account
-      this.db.run(
-        'DELETE FROM scheduled_posts WHERE account_id = ?',
-        [id],
-        (err) => {
+      this.db.serialize(() => {
+        // First delete all posts for this account
+        this.db.run('DELETE FROM posts WHERE account_id = ?', [id], (err) => {
           if (err) {
             reject(err);
             return;
           }
-          
-          // Then delete the account
-          this.db.run(
-            'DELETE FROM nostr_accounts WHERE id = ?',
-            [id],
-            (err) => {
-              if (err) reject(err);
-              else resolve();
-            }
-          );
-        }
-      );
+        });
+        
+        // Then delete all notes for this account
+        this.db.run('DELETE FROM notes WHERE account_id = ?', [id], (err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+        });
+        
+        // Finally delete the account
+        this.db.run('DELETE FROM nostr_accounts WHERE id = ?', [id], (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
     });
   }
 

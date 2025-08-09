@@ -77,7 +77,7 @@ export function stopNostrMQReceiver(): void {
   }
 }
 
-export async function publishToNostr(content: string, apiEndpoint?: string, postId?: number): Promise<void> {
+export async function publishToNostr(content: string, apiEndpoint?: string, postId?: number): Promise<string | undefined> {
   const db = new PostDatabase();
   let npub: string | undefined;
   let nsec: string | undefined;
@@ -153,6 +153,8 @@ export async function publishToNostr(content: string, apiEndpoint?: string, post
     throw new Error('No NPUB found in accounts or environment variables');
   }
   
+  let eventId: string | undefined;
+  
   if (publishMethod === 'direct') {
     // Try to get nsec from keychain first
     let finalNsec = nsec;
@@ -195,8 +197,9 @@ export async function publishToNostr(content: string, apiEndpoint?: string, post
       
       const result = await publishTextNote(content, finalNsec, relays, powDifficulty);
       
+      eventId = result.id;
       console.log(`✅ Successfully published via direct relay connection!`);
-      console.log(`📋 Event ID: ${result.id}`);
+      console.log(`📋 Event ID: ${eventId}`);
       console.log(`🌐 Published to ${result.relays.length} relay(s): ${result.relays.join(', ')}`);
       console.log('================================\n');
     } catch (error) {
@@ -254,11 +257,12 @@ export async function publishToNostr(content: string, apiEndpoint?: string, post
       }, null, 2));
       
       console.log('🔄 Calling NostrMQ send() function...');
-      const eventId = await send({
+      const mqEventId = await send({
         target: nostrmqTarget,
         payload: payload
       });
       
+      eventId = mqEventId;
       console.log(`✅ NostrMQ send() completed successfully!`);
       console.log(`📋 Returned Event ID: ${eventId}`);
       console.log(`🎯 Target: ${nostrmqTarget}`);
@@ -332,12 +336,30 @@ export async function publishToNostr(content: string, apiEndpoint?: string, post
       let result;
       try {
         result = JSON.parse(responseText);
+        // Try to extract event ID from various possible response formats
+        if (result.eventId) {
+          eventId = result.eventId;
+        } else if (result.event_id) {
+          eventId = result.event_id;
+        } else if (result.id) {
+          eventId = result.id;
+        } else if (typeof result === 'string' && result.length === 64) {
+          // Assume it's the event ID if it's a 64-char hex string
+          eventId = result;
+        }
       } catch (e) {
         console.log('Response is not JSON, raw text:', responseText);
         result = responseText;
+        // Check if the raw text looks like an event ID
+        if (typeof responseText === 'string' && responseText.length === 64) {
+          eventId = responseText;
+        }
       }
       
       console.log('✅ Successfully published to Nostr!');
+      if (eventId) {
+        console.log(`📋 Event ID: ${eventId}`);
+      }
       console.log('Full response:', JSON.stringify(result, null, 2));
       console.log('================================\n');
     } catch (error) {
@@ -350,4 +372,6 @@ export async function publishToNostr(content: string, apiEndpoint?: string, post
       throw error;
     }
   }
+  
+  return eventId;
 }
