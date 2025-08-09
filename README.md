@@ -22,16 +22,60 @@ npm run build
 
 ## Usage
 
-### Running the Scheduler with Web UI
+### PM2 Process Management (Recommended)
+
+#### Development Environment
+For development with hot-reload and file watching:
+```bash
+# Build and start development server
+npm run build
+npm run pm2:dev
+
+# Access web UI at http://localhost:3002
+```
+
+Development PM2 commands:
+```bash
+npm run pm2:restart:dev  # Restart dev server
+npm run pm2:stop:dev     # Stop dev server
+npm run pm2:logs:dev     # View dev logs
+```
+
+#### Production Environment
+For production deployment:
+```bash
+# Build and start production server
+npm run build
+npm run pm2:prod
+
+# Access web UI at http://localhost:3001
+```
+
+Production PM2 commands:
+```bash
+npm run pm2:restart:prod # Restart prod server
+npm run pm2:stop:prod    # Stop prod server
+npm run pm2:logs:prod    # View prod logs
+```
+
+#### PM2 Management
+```bash
+npm run pm2:status       # Check status of all processes
+npm run pm2:delete       # Delete all processes (dev & prod)
+pm2 monit               # PM2 monitoring dashboard
+```
+
+### Direct Node.js Usage
+
+#### Running the Scheduler with Web UI
 Start both the scheduler and web interface:
 ```bash
 npm start
 # or
 node dist/index.js daemon
 ```
-Then open http://localhost:3001 in your browser.
 
-### Running Web UI Only
+#### Running Web UI Only
 Start just the web interface without the scheduler:
 ```bash
 node dist/index.js web
@@ -73,8 +117,34 @@ node dist/index.js delete <post-id>
 
 The scheduler checks for posts to publish every 5 minutes by default. Posts are published according to their scheduled time.
 
-Environment variables:
+### Environment Variables
 - `NOSTR_NPUB`: Your Nostr public key in npub format (required)
 - `NOSTR_API_ENDPOINT`: API endpoint for publishing (default: http://localhost:3000/post/note)
 - `POW_BITS`: Proof of work bits (optional)
 - `TIMEOUT_MS`: Publish timeout in milliseconds (optional)
+
+### PM2 Deployment Setup
+
+This project includes separate PM2 configurations for development and production:
+
+**Development (`ecosystem.dev.config.cjs`)**:
+- Process name: `fcdev`
+- Port: `3002`
+- Uses `tsx` for TypeScript hot-reload
+- Watches `src/` directory for changes
+- Lower memory limits (512MB)
+- More aggressive restart policies
+
+**Production (`ecosystem.prod.config.cjs`)**:
+- Process name: `fcprod`  
+- Port: `3001`
+- Uses compiled `dist/index.js`
+- No file watching
+- Higher memory limits (1GB)
+- Conservative restart policies
+
+This setup allows you to run both development and production versions simultaneously on the same machine without conflicts. Each environment has its own:
+- Process name (fcdev/fcprod)
+- Port number (3002/3001)
+- Log files (`logs/out-dev.log` vs `logs/out-prod.log`)
+- Memory and restart configurations
