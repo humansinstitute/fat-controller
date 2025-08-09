@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'fcdev',
-      script: 'tsx',
+      script: './node_modules/.bin/tsx',
       args: 'src/index.ts daemon',
       instances: 1,
       autorestart: true,
