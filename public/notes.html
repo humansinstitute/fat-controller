@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nostr Notes Manager</title>
+    <title>The Fat Controller</title>
     <style>
         * {
             margin: 0;
@@ -13,7 +13,7 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f23 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -28,10 +28,43 @@
         }
         
         header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #2d2d50 0%, #1a1a2e 100%);
             color: white;
             padding: 30px;
             text-align: center;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header-account-switcher {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header-account-switcher label {
+            color: white;
+            opacity: 0.9;
+            font-weight: 500;
+            margin-bottom: 0;
+        }
+
+        .header-account-switcher select {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #333;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+
+        .header-account-switcher .account-info {
+            color: white;
+            opacity: 0.8;
+            font-size: 12px;
+            margin-left: 10px;
         }
         
         h1 {
@@ -68,8 +101,8 @@
         }
         
         .nav-tab.active {
-            color: #667eea;
-            border-bottom: 3px solid #667eea;
+            color: #1a1a2e;
+            border-bottom: 3px solid #1a1a2e;
             margin-bottom: -2px;
             background: white;
         }
@@ -95,7 +128,7 @@
         }
         
         .btn-new-note {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f23 100%);
             color: white;
             border: none;
             padding: 10px 20px;
@@ -107,7 +140,7 @@
         
         .btn-new-note:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 20px rgba(26, 26, 46, 0.4);
         }
         
         .notes-grid {
@@ -396,7 +429,7 @@
         }
         
         .btn-save {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f23 100%);
             color: white;
             border: none;
             padding: 10px 20px;
@@ -415,28 +448,6 @@
             margin-bottom: 10px;
         }
         
-        /* Account Switcher */
-        .account-switcher {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 100;
-        }
-        
-        .account-select {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 8px 12px;
-            border-radius: 5px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        
-        .account-select option {
-            background: #333;
-            color: white;
-        }
         
         /* Note Actions */
         .note-actions {
@@ -469,18 +480,66 @@
         .btn-delete-note:hover {
             background: #c82333;
         }
+
+        /* Account List Styles */
+        .account-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .account-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .account-info-detailed {
+            flex: 1;
+        }
+
+        .account-name {
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .account-npub {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+            font-family: monospace;
+        }
+
+        .account-method {
+            font-size: 14px;
+            color: #1a1a2e;
+            font-weight: 500;
+        }
+
+        .account-active {
+            border-left: 4px solid #28a745;
+            background: #f8fff9;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div class="account-switcher">
-                <select id="account-switcher" class="account-select" onchange="switchAccount()">
-                    <!-- Accounts will be loaded here -->
+            <h1>⚡ The Fat Controller</h1>
+            <p class="subtitle">Managing your traffic on the freedom network</p>
+            
+            <div class="header-account-switcher">
+                <label for="headerSelectedAccount">Active Account:</label>
+                <select id="headerSelectedAccount" name="headerSelectedAccount" onchange="switchAccount()">
+                    <option value="">Loading accounts...</option>
                 </select>
+                <div class="account-info" id="headerAccountInfo">Select an account</div>
             </div>
-            <h1>⚡ Nostr Notes Manager</h1>
-            <p class="subtitle">Create once, schedule many times</p>
         </header>
         
         <nav class="nav-tabs">
@@ -525,8 +584,14 @@
             
             <!-- Accounts View -->
             <div id="accounts-view" class="view">
-                <h2>Manage Accounts</h2>
-                <!-- Account management will go here -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                    <h2>Manage Accounts</h2>
+                    <button type="button" id="addAccountBtn" class="btn-new-note">+ Add Account</button>
+                </div>
+                
+                <div id="accounts-list">
+                    <!-- Account list will be loaded here -->
+                </div>
             </div>
         </main>
     </div>
@@ -564,14 +629,111 @@
             <div class="modal-header">
                 <h3 class="modal-title">Schedule Post</h3>
             </div>
+            
+            <div class="form-group">
+                <label for="schedule-type">Scheduling Option</label>
+                <select id="schedule-type" name="schedule-type" required>
+                    <option value="single">Single Post</option>
+                    <option value="repeat">Repeat Multiple Times</option>
+                </select>
+            </div>
+            
             <div class="form-group">
                 <label for="schedule-datetime">Schedule For</label>
                 <input type="datetime-local" id="schedule-datetime" required>
             </div>
+            
+            <div class="form-group" id="repeat-options" style="display: none;">
+                <label for="interval-hours">Repeat Every (hours)</label>
+                <input type="number" id="interval-hours" name="interval-hours" 
+                       min="1" max="168" value="3" placeholder="e.g., 3" style="margin-bottom: 15px;">
+                
+                <label for="repeat-count">Number of Repeats</label>
+                <select id="repeat-count" name="repeat-count">
+                    <option value="8">8 times (1 day @ 3hr intervals)</option>
+                    <option value="16">16 times (2 days @ 3hr intervals)</option>
+                    <option value="56">56 times (7 days @ 3hr intervals)</option>
+                    <option value="custom">Custom</option>
+                </select>
+                <input type="number" id="custom-repeat-count" name="custom-repeat-count" 
+                       min="2" max="100" placeholder="Enter number" style="display: none; margin-top: 10px;">
+            </div>
+            
+            <div class="scheduling-hint" id="scheduling-hint" style="display: none; background: #e3f2fd; border-left: 4px solid #2196f3; padding: 10px 15px; margin: 15px 0; font-size: 14px; color: #1565c0; border-radius: 4px;">
+                💡 <span id="hint-text"></span>
+            </div>
+            
             <div class="modal-actions">
                 <button class="btn-cancel" onclick="hideScheduleModal()">Cancel</button>
                 <button class="btn-save" onclick="schedulePost()">Schedule</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div id="addAccountModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
+            <h3 style="margin-bottom: 20px;">Add New Nostr Account</h3>
+            <form id="addAccountForm">
+                <div class="form-group">
+                    <label for="accountName">Account Name</label>
+                    <input type="text" id="accountName" name="accountName" placeholder="e.g., Personal, Work, Alt" required>
+                </div>
+                
+                <div class="form-group" id="npubGroup" style="display: none;">
+                    <label for="accountNpub">Nostr Public Key (npub)</label>
+                    <input type="text" id="accountNpub" name="accountNpub" placeholder="npub1...">
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        📝 Required for API and NostrMQ methods (remote signers)
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="publishMethod">Publishing Method</label>
+                    <select id="publishMethod" name="publishMethod" required>
+                        <option value="direct" selected>Direct to Relays (enter nsec)</option>
+                        <option value="api">Direct API</option>
+                        <option value="nostrmq">NostrMQ</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="apiEndpointGroup" style="display: none;">
+                    <label for="accountApiEndpoint">API Endpoint (optional)</label>
+                    <input type="url" id="accountApiEndpoint" name="accountApiEndpoint" placeholder="http://localhost:3000/post/note">
+                </div>
+                
+                <div class="form-group" id="nostrmqTargetGroup" style="display: none;">
+                    <label for="nostrmqTarget">NostrMQ Target (npub)</label>
+                    <input type="text" id="nostrmqTarget" name="nostrmqTarget" placeholder="npub1... of NostrMQ target">
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        💡 Enter the npub of the NostrMQ service that will handle your posts (will be auto-converted to hex)
+                    </div>
+                </div>
+                
+                <div class="form-group" id="directKeyGroup">
+                    <label for="accountNsec">Private Key (nsec)</label>
+                    <input type="password" id="accountNsec" name="accountNsec" placeholder="nsec1..." required>
+                    <div id="nsecValidation" style="font-size: 12px; margin-top: 5px; display: none;">
+                        ✅ Valid key - npub automatically derived
+                    </div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        🔐 Your private key will be stored securely in macOS Keychain when available
+                    </div>
+                </div>
+                
+                <div class="form-group" id="relaysGroup">
+                    <label for="relays">Relay URLs (comma-separated)</label>
+                    <textarea id="relays" name="relays" placeholder="wss://relay.damus.io, wss://nos.lol, wss://relay.nostr.band" rows="3"></textarea>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        🌐 Leave empty to use default relays
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                    <button type="button" id="cancelAddAccount" style="background: #6c757d;">Cancel</button>
+                    <button type="submit">Add Account</button>
+                </div>
+            </form>
         </div>
     </div>
     
@@ -598,6 +760,8 @@
             
             if (viewName === 'notes') {
                 loadNotes();
+            } else if (viewName === 'accounts') {
+                loadAccountsList();
             }
         }
         
@@ -621,12 +785,15 @@
                 }
                 
                 // Populate account switcher dropdown
-                const switcher = document.getElementById('account-switcher');
-                switcher.innerHTML = accounts.map(account => 
+                const headerSelect = document.getElementById('headerSelectedAccount');
+                headerSelect.innerHTML = accounts.map(account => 
                     `<option value="${account.id}" ${account.is_active ? 'selected' : ''}>
                         ${account.name}
                     </option>`
                 ).join('');
+                
+                // Update account info display
+                updateAccountInfo();
                 
                 // Populate note creation dropdown
                 const select = document.getElementById('note-account');
@@ -637,14 +804,38 @@
                 ).join('');
             } catch (error) {
                 console.error('Failed to load accounts:', error);
+                const headerSelect = document.getElementById('headerSelectedAccount');
+                headerSelect.innerHTML = '<option value="">Error loading accounts</option>';
+                document.getElementById('headerAccountInfo').textContent = 'Error loading';
             }
         }
         
         // Switch Account
         function switchAccount() {
-            const switcher = document.getElementById('account-switcher');
-            selectedAccountId = parseInt(switcher.value);
+            const headerSelect = document.getElementById('headerSelectedAccount');
+            selectedAccountId = parseInt(headerSelect.value);
+            updateAccountInfo();
             loadNotes(); // Reload notes for the selected account
+        }
+        
+        // Update account info display
+        function updateAccountInfo() {
+            const account = accounts.find(a => a.id == selectedAccountId);
+            if (account) {
+                let methodInfo;
+                if (account.publish_method === 'nostrmq') {
+                    methodInfo = `NostrMQ: ${(account.nostrmq_target_display || account.nostrmq_target)?.substring(0, 20)}...`;
+                } else if (account.publish_method === 'direct') {
+                    const relayCount = account.relays ? account.relays.split(',').length : 0;
+                    methodInfo = `Direct: ${relayCount > 0 ? relayCount + ' relay(s)' : 'default relays'}`;
+                } else {
+                    methodInfo = `API: ${account.api_endpoint || 'default'}`;
+                }
+                
+                document.getElementById('headerAccountInfo').textContent = `${account.npub.substring(0, 12)}... | ${account.publish_method.toUpperCase()}`;
+            } else {
+                document.getElementById('headerAccountInfo').textContent = 'No account selected';
+            }
         }
         
         // Load Notes
@@ -784,6 +975,10 @@
         
         function hideScheduleModal() {
             document.getElementById('schedule-modal').classList.remove('active');
+            // Reset form
+            document.getElementById('schedule-type').value = 'single';
+            document.getElementById('repeat-options').style.display = 'none';
+            document.getElementById('scheduling-hint').style.display = 'none';
         }
         
         // Create Note
@@ -843,6 +1038,7 @@
         // Schedule Post
         async function schedulePost() {
             const scheduledFor = document.getElementById('schedule-datetime').value;
+            const scheduleType = document.getElementById('schedule-type').value;
             
             if (!scheduledFor) {
                 alert('Please select a date and time');
@@ -850,21 +1046,80 @@
             }
             
             try {
-                const response = await fetch(`/api/notes/${currentNoteId}/schedule`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        scheduledFor,
-                        accountId: currentAccountId
-                    })
-                });
-                
-                if (response.ok) {
+                if (scheduleType === 'repeat') {
+                    // Handle multiple posts with intervals for the same note
+                    const intervalHours = parseInt(document.getElementById('interval-hours').value) || 3;
+                    const repeatCount = document.getElementById('repeat-count').value;
+                    const customRepeatCount = document.getElementById('custom-repeat-count').value;
+                    
+                    let finalRepeatCount = 0;
+                    if (repeatCount === 'custom') {
+                        finalRepeatCount = parseInt(customRepeatCount);
+                        if (!finalRepeatCount || finalRepeatCount < 2) {
+                            alert('Please enter a valid number of repeats (minimum 2)');
+                            return;
+                        }
+                    } else {
+                        finalRepeatCount = parseInt(repeatCount);
+                    }
+                    
+                    // Create multiple posts for the same note
+                    const startTime = new Date(scheduledFor);
+                    let successCount = 0;
+                    let errors = [];
+                    
+                    for (let i = 0; i < finalRepeatCount; i++) {
+                        const postTime = new Date(startTime);
+                        postTime.setHours(postTime.getHours() + (i * intervalHours));
+                        
+                        try {
+                            const response = await fetch(`/api/notes/${currentNoteId}/schedule`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    scheduledFor: postTime.toISOString(),
+                                    accountId: currentAccountId
+                                })
+                            });
+                            
+                            if (response.ok) {
+                                successCount++;
+                            } else {
+                                const error = await response.json();
+                                errors.push(`Post ${i + 1}: ${error.error}`);
+                            }
+                        } catch (error) {
+                            errors.push(`Post ${i + 1}: ${error.message}`);
+                        }
+                    }
+                    
                     hideScheduleModal();
                     showNotePosts(currentNoteId);
+                    
+                    if (errors.length === 0) {
+                        alert(`${successCount} posts scheduled successfully!`);
+                    } else {
+                        alert(`${successCount} posts scheduled successfully. ${errors.length} failed:\n${errors.join('\n')}`);
+                    }
                 } else {
-                    const error = await response.json();
-                    alert('Failed to schedule post: ' + error.error);
+                    // Single post scheduling - use existing endpoint
+                    const response = await fetch(`/api/notes/${currentNoteId}/schedule`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            scheduledFor,
+                            accountId: currentAccountId
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        hideScheduleModal();
+                        showNotePosts(currentNoteId);
+                        alert('Post scheduled successfully!');
+                    } else {
+                        const error = await response.json();
+                        alert('Failed to schedule post: ' + error.error);
+                    }
                 }
             } catch (error) {
                 console.error('Failed to schedule post:', error);
@@ -900,6 +1155,276 @@
             now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
             document.getElementById('schedule-datetime').value = now.toISOString().slice(0, 16);
         }
+
+        // Schedule type change handler
+        document.getElementById('schedule-type').addEventListener('change', (e) => {
+            const scheduleType = e.target.value;
+            const repeatOptions = document.getElementById('repeat-options');
+            const schedulingHint = document.getElementById('scheduling-hint');
+            const hintText = document.getElementById('hint-text');
+            
+            if (scheduleType === 'repeat') {
+                repeatOptions.style.display = 'block';
+                updateSchedulingHint();
+                schedulingHint.style.display = 'block';
+            } else {
+                repeatOptions.style.display = 'none';
+                schedulingHint.style.display = 'none';
+            }
+        });
+
+        // Update hint text based on interval hours
+        function updateSchedulingHint() {
+            const intervalHours = document.getElementById('interval-hours').value || 3;
+            const hintText = document.getElementById('hint-text');
+            hintText.textContent = `Posts will be scheduled starting at the selected time and then repeated every ${intervalHours} hour${intervalHours != 1 ? 's' : ''}`;
+            
+            // Update repeat count options to reflect the interval
+            updateRepeatOptions();
+        }
+
+        // Update repeat count options based on interval hours
+        function updateRepeatOptions() {
+            const intervalHours = parseInt(document.getElementById('interval-hours').value) || 3;
+            const repeatSelect = document.getElementById('repeat-count');
+            const currentValue = repeatSelect.value;
+            
+            // Calculate repeats for 1, 2, and 7 days
+            const oneDayRepeats = Math.floor(24 / intervalHours);
+            const twoDayRepeats = Math.floor(48 / intervalHours);
+            const sevenDayRepeats = Math.floor(168 / intervalHours);
+            
+            // Update options
+            repeatSelect.innerHTML = `
+                <option value="${oneDayRepeats}">${oneDayRepeats} times (1 day @ ${intervalHours}hr intervals)</option>
+                <option value="${twoDayRepeats}">${twoDayRepeats} times (2 days @ ${intervalHours}hr intervals)</option>
+                <option value="${sevenDayRepeats}">${sevenDayRepeats} times (7 days @ ${intervalHours}hr intervals)</option>
+                <option value="custom">Custom</option>
+            `;
+            
+            // Restore previous selection if it was custom
+            if (currentValue === 'custom') {
+                repeatSelect.value = 'custom';
+                document.getElementById('custom-repeat-count').style.display = 'block';
+            }
+        }
+
+        // Handle interval hours change
+        document.getElementById('interval-hours').addEventListener('input', updateSchedulingHint);
+
+        // Handle custom repeat count
+        document.getElementById('repeat-count').addEventListener('change', (e) => {
+            const customInput = document.getElementById('custom-repeat-count');
+            if (e.target.value === 'custom') {
+                customInput.style.display = 'block';
+                customInput.required = true;
+            } else {
+                customInput.style.display = 'none';
+                customInput.required = false;
+            }
+        });
+
+        // Account Management Functions
+        function loadAccountsList() {
+            const accountsContainer = document.getElementById('accounts-list');
+            
+            if (accounts.length === 0) {
+                accountsContainer.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No accounts configured</h3>
+                        <p>Add your first Nostr account to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            accountsContainer.innerHTML = `<div class="account-list">` + 
+                accounts.map(account => `
+                    <div class="account-item ${account.is_active ? 'account-active' : ''}">
+                        <div class="account-info-detailed">
+                            <div class="account-name">
+                                ${account.name} ${account.is_active ? '(Active)' : ''}
+                            </div>
+                            <div class="account-npub">${account.npub}</div>
+                            <div class="account-method">
+                                ${account.publish_method.toUpperCase()}${account.publish_method === 'direct' && account.relays ? ' - ' + account.relays.split(',').length + ' relay(s)' : ''}
+                                ${account.publish_method === 'api' && account.api_endpoint ? ' - ' + account.api_endpoint : ''}
+                                ${account.publish_method === 'nostrmq' && account.nostrmq_target_display ? ' - ' + account.nostrmq_target_display : ''}
+                            </div>
+                        </div>
+                        <div class="post-actions">
+                            ${!account.is_active ? `
+                                <button class="action-btn btn-schedule" onclick="activateAccount(${account.id})">Activate</button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('') + 
+            `</div>`;
+        }
+
+        async function activateAccount(accountId) {
+            try {
+                await fetch(`/api/accounts/${accountId}/activate`, { method: 'POST' });
+                await loadAccounts();
+                loadAccountsList();
+            } catch (error) {
+                console.error('Error activating account:', error);
+                alert('Failed to activate account');
+            }
+        }
+
+        // Add account modal handlers
+        document.getElementById('addAccountBtn').addEventListener('click', () => {
+            document.getElementById('addAccountModal').style.display = 'block';
+            // Initialize form with direct method selected
+            document.getElementById('publishMethod').value = 'direct';
+            document.getElementById('publishMethod').dispatchEvent(new Event('change'));
+        });
+        
+        document.getElementById('cancelAddAccount').addEventListener('click', () => {
+            document.getElementById('addAccountModal').style.display = 'none';
+            document.getElementById('addAccountForm').reset();
+            // Reset form visibility to direct method default
+            document.getElementById('publishMethod').value = 'direct';
+            document.getElementById('npubGroup').style.display = 'none';
+            document.getElementById('apiEndpointGroup').style.display = 'none';
+            document.getElementById('nostrmqTargetGroup').style.display = 'none';
+            document.getElementById('directKeyGroup').style.display = 'block';
+            document.getElementById('relaysGroup').style.display = 'block';
+            document.getElementById('accountNpub').required = false;
+        });
+        
+        // Handle publish method selection
+        document.getElementById('publishMethod').addEventListener('change', (e) => {
+            const method = e.target.value;
+            const npubGroup = document.getElementById('npubGroup');
+            const apiGroup = document.getElementById('apiEndpointGroup');
+            const nostrmqGroup = document.getElementById('nostrmqTargetGroup');
+            const directKeyGroup = document.getElementById('directKeyGroup');
+            const relaysGroup = document.getElementById('relaysGroup');
+            
+            // Hide all groups first
+            npubGroup.style.display = 'none';
+            apiGroup.style.display = 'none';
+            nostrmqGroup.style.display = 'none';
+            directKeyGroup.style.display = 'none';
+            relaysGroup.style.display = 'none';
+            
+            // Show relevant groups based on method
+            if (method === 'nostrmq') {
+                npubGroup.style.display = 'block';
+                nostrmqGroup.style.display = 'block';
+                document.getElementById('accountNpub').required = true;
+            } else if (method === 'direct') {
+                directKeyGroup.style.display = 'block';
+                relaysGroup.style.display = 'block';
+                document.getElementById('accountNpub').required = false;
+            } else {
+                npubGroup.style.display = 'block';
+                apiGroup.style.display = 'block';
+                document.getElementById('accountNpub').required = true;
+            }
+        });
+        
+        // Auto-derive npub from nsec for direct method
+        document.getElementById('accountNsec').addEventListener('input', (e) => {
+            const nsec = e.target.value.trim();
+            const publishMethod = document.getElementById('publishMethod').value;
+            const validation = document.getElementById('nsecValidation');
+            
+            // Hide validation message initially
+            validation.style.display = 'none';
+            
+            if (publishMethod === 'direct' && nsec) {
+                try {
+                    // Validate nsec format
+                    if (!nsec.startsWith('nsec1') || nsec.length < 20) {
+                        return;
+                    }
+                    
+                    // Derive npub from nsec using nostr-tools
+                    const { nip19, getPublicKey } = window.NostrTools;
+                    const { type, data } = nip19.decode(nsec);
+                    
+                    if (type === 'nsec') {
+                        const pubkey = getPublicKey(data);
+                        const npub = nip19.npubEncode(pubkey);
+                        
+                        // Set the derived npub (for internal use, not visible to user for direct method)
+                        document.getElementById('accountNpub').value = npub;
+                        
+                        // Show success validation
+                        validation.style.display = 'block';
+                        validation.style.color = '#28a745';
+                        
+                        console.log('Auto-derived npub from nsec:', npub);
+                    }
+                } catch (error) {
+                    console.log('Invalid nsec format');
+                    document.getElementById('accountNpub').value = '';
+                    validation.style.display = 'none';
+                }
+            }
+        });
+
+        // Handle add account form submission
+        document.getElementById('addAccountForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const publishMethod = formData.get('publishMethod');
+            let npub = formData.get('accountNpub');
+            
+            // For direct method, ensure npub is derived from nsec
+            if (publishMethod === 'direct') {
+                const nsec = formData.get('accountNsec');
+                if (nsec && nsec.startsWith('nsec1')) {
+                    try {
+                        const { nip19, getPublicKey } = window.NostrTools;
+                        const { type, data } = nip19.decode(nsec);
+                        if (type === 'nsec') {
+                            const pubkey = getPublicKey(data);
+                            npub = nip19.npubEncode(pubkey);
+                        }
+                    } catch (error) {
+                        alert('Invalid nsec format');
+                        return;
+                    }
+                }
+            }
+            
+            try {
+                const response = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: formData.get('accountName'),
+                        npub: npub,
+                        nsec: publishMethod === 'direct' ? formData.get('accountNsec') || null : null,
+                        publishMethod: publishMethod,
+                        apiEndpoint: publishMethod === 'api' ? formData.get('accountApiEndpoint') || null : null,
+                        nostrmqTarget: publishMethod === 'nostrmq' ? formData.get('nostrmqTarget') || null : null,
+                        relays: publishMethod === 'direct' ? formData.get('relays') || null : null
+                    })
+                });
+                
+                if (response.ok) {
+                    document.getElementById('addAccountModal').style.display = 'none';
+                    document.getElementById('addAccountForm').reset();
+                    await loadAccounts();
+                    loadAccountsList();
+                    alert('Account added successfully!');
+                } else {
+                    const error = await response.json();
+                    alert(`Error: ${error.error}`);
+                }
+            } catch (error) {
+                alert('Error adding account: ' + error.message);
+            }
+        });
     </script>
+    
+    <!-- Nostr Tools for key derivation -->
+    <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
 </body>
 </html>
