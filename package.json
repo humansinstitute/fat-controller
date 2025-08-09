@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@nostr-dev-kit/ndk": "^2.14.33",
+    "@types/ws": "^8.18.1",
     "commander": "^11.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -29,7 +30,8 @@
     "node-cron": "^3.0.3",
     "nostr-tools": "^2.16.2",
     "nostrmq": "^0.4.0",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

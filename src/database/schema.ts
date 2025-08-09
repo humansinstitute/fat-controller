@@ -40,6 +40,28 @@ export interface ScheduledPost {
   publish_method?: 'api' | 'nostrmq';
 }
 
+export interface PostStats {
+  id?: number;
+  post_id: number;
+  likes: number;
+  reposts: number;
+  zap_amount: number; // Total sats zapped
+  last_updated: string; // ISO 8601 timestamp
+  status: 'success' | 'unknown' | 'error';
+  error_message?: string;
+  created_at?: string;
+}
+
+export interface AggregateStats {
+  note_id: number;
+  total_likes: number;
+  total_reposts: number;
+  total_zap_amount: number; // Total sats
+  posts_with_stats: number;
+  total_posts: number;
+  last_updated: string;
+}
+
 export interface NostrAccount {
   id?: number;
   name: string;

@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { ScheduledPost, NostrAccount, Note, NoteWithCounts, Post } from './schema.js';
+import { ScheduledPost, NostrAccount, Note, NoteWithCounts, Post, PostStats, AggregateStats } from './schema.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { mkdirSync } from 'fs';
@@ -83,15 +83,40 @@ class PostDatabase {
                 return;
               }
               
-              // Create indexes
-              this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_account_id ON notes(account_id)');
-              this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at)');
-              this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_note_id ON posts(note_id)');
-              this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_event_id ON posts(event_id)');
-              this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)');
-              this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_scheduled_for ON posts(scheduled_for)');
-              
-              resolve();
+              // Create post_stats table
+              this.db.run(`
+                CREATE TABLE IF NOT EXISTS post_stats (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  post_id INTEGER NOT NULL,
+                  likes INTEGER DEFAULT 0,
+                  reposts INTEGER DEFAULT 0,
+                  zap_amount INTEGER DEFAULT 0,
+                  last_updated TEXT NOT NULL,
+                  status TEXT NOT NULL CHECK (status IN ('success', 'unknown', 'error')),
+                  error_message TEXT,
+                  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+                  UNIQUE(post_id)
+                )
+              `, (err) => {
+                if (err) {
+                  reject(err);
+                  return;
+                }
+                
+                // Create indexes
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_account_id ON notes(account_id)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_note_id ON posts(note_id)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_event_id ON posts(event_id)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_scheduled_for ON posts(scheduled_for)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_post_stats_post_id ON post_stats(post_id)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_post_stats_status ON post_stats(status)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_post_stats_last_updated ON post_stats(last_updated)');
+                
+                resolve();
+              });
             });
           });
         });
@@ -496,6 +521,153 @@ class PostDatabase {
           if (err) reject(err);
           else resolve();
         });
+      });
+    });
+  }
+
+  // PostStats management methods
+  createOrUpdatePostStats(postId: number, stats: Omit<PostStats, 'id' | 'post_id' | 'created_at'>): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(`
+        INSERT OR REPLACE INTO post_stats 
+        (post_id, likes, reposts, zap_amount, last_updated, status, error_message)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [postId, stats.likes, stats.reposts, stats.zap_amount, stats.last_updated, stats.status, stats.error_message || null], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+
+  getPostStats(postId: number): Promise<PostStats | null> {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        'SELECT * FROM post_stats WHERE post_id = ?',
+        [postId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row as PostStats || null);
+        }
+      );
+    });
+  }
+
+  getAllPostsWithStats(noteId: number): Promise<(Post & {content: string, stats?: PostStats})[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(`
+        SELECT 
+          p.*,
+          n.content,
+          ps.likes,
+          ps.reposts,
+          ps.zap_amount,
+          ps.last_updated as stats_last_updated,
+          ps.status as stats_status,
+          ps.error_message as stats_error
+        FROM posts p
+        JOIN notes n ON p.note_id = n.id
+        LEFT JOIN post_stats ps ON p.id = ps.post_id
+        WHERE p.note_id = ?
+        ORDER BY p.scheduled_for ASC
+      `, [noteId], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          const postsWithStats = (rows as any[]).map(row => {
+            const post: Post & {content: string, stats?: PostStats} = {
+              id: row.id,
+              note_id: row.note_id,
+              scheduled_for: row.scheduled_for,
+              published_at: row.published_at,
+              status: row.status,
+              error_message: row.error_message,
+              event_id: row.event_id,
+              primal_url: row.primal_url,
+              api_endpoint: row.api_endpoint,
+              account_id: row.account_id,
+              publish_method: row.publish_method,
+              content: row.content
+            };
+            
+            if (row.stats_status) {
+              post.stats = {
+                post_id: row.id,
+                likes: row.likes || 0,
+                reposts: row.reposts || 0,
+                zap_amount: row.zap_amount || 0,
+                last_updated: row.stats_last_updated,
+                status: row.stats_status,
+                error_message: row.stats_error
+              };
+            }
+            
+            return post;
+          });
+          resolve(postsWithStats);
+        }
+      });
+    });
+  }
+
+  getAggregateStats(noteId: number): Promise<AggregateStats> {
+    return new Promise((resolve, reject) => {
+      this.db.get(`
+        SELECT 
+          ? as note_id,
+          COALESCE(SUM(CASE WHEN ps.status = 'success' THEN ps.likes ELSE 0 END), 0) as total_likes,
+          COALESCE(SUM(CASE WHEN ps.status = 'success' THEN ps.reposts ELSE 0 END), 0) as total_reposts,
+          COALESCE(SUM(CASE WHEN ps.status = 'success' THEN ps.zap_amount ELSE 0 END), 0) as total_zap_amount,
+          COUNT(ps.id) as posts_with_stats,
+          (SELECT COUNT(*) FROM posts WHERE note_id = ? AND status = 'published') as total_posts,
+          COALESCE(MAX(ps.last_updated), '') as last_updated
+        FROM posts p
+        LEFT JOIN post_stats ps ON p.id = ps.post_id
+        WHERE p.note_id = ? AND p.status = 'published'
+      `, [noteId, noteId, noteId], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row as AggregateStats);
+        }
+      });
+    });
+  }
+
+  getPostsForStatsCollection(maxAge?: number): Promise<Post[]> {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT p.*, n.content 
+        FROM posts p
+        JOIN notes n ON p.note_id = n.id
+        WHERE p.status = 'published' 
+        AND p.event_id IS NOT NULL
+      `;
+      
+      const params: any[] = [];
+      
+      if (maxAge) {
+        query += ` AND datetime(p.published_at) > datetime('now', '-${maxAge} hours')`;
+      }
+      
+      // Exclude posts that have been successfully updated in the last hour
+      query += ` AND p.id NOT IN (
+        SELECT post_id FROM post_stats 
+        WHERE status = 'success' 
+        AND datetime(last_updated) > datetime('now', '-1 hour')
+      )`;
+      
+      query += ` ORDER BY p.published_at DESC`;
+      
+      this.db.all(query, params, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          const posts = (rows as any[]).map(row => ({
+            ...row,
+            content: row.content
+          }));
+          resolve(posts);
+        }
       });
     });
   }
