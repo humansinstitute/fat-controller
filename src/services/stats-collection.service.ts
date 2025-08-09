@@ -1,6 +1,7 @@
 import PostDatabase from '../database/db.js';
 import { Post, PostStats } from '../database/schema.js';
 import { PrimalClient, PrimalHttpClient, EventStats } from './primal-client.js';
+import { RelayStatsCollector, RelayStatsConfig } from './relay-stats-collector.js';
 
 export interface StatsCollectionResult {
   success: boolean;
@@ -32,21 +33,27 @@ export class StatsCollectionService {
   private db: PostDatabase;
   private primalClient: PrimalClient;
   private httpFallback: PrimalHttpClient;
+  private relayCollector: RelayStatsCollector;
   private maxRetries: number;
   private retryDelay: number;
+  private useRelayStats: boolean;
 
   constructor(
     db?: PostDatabase,
     primalWsUrl?: string,
     primalHttpUrl?: string,
     maxRetries: number = 3,
-    retryDelay: number = 1000
+    retryDelay: number = 1000,
+    relayConfig?: RelayStatsConfig,
+    useRelayStats: boolean = true
   ) {
     this.db = db || new PostDatabase();
     this.primalClient = new PrimalClient(primalWsUrl);
     this.httpFallback = new PrimalHttpClient(primalHttpUrl);
+    this.relayCollector = new RelayStatsCollector(relayConfig);
     this.maxRetries = maxRetries;
     this.retryDelay = retryDelay;
+    this.useRelayStats = useRelayStats;
   }
 
   async collectStatsForPost(post: Post, retryCount: number = 0): Promise<StatsCollectionResult> {
@@ -60,17 +67,37 @@ export class StatsCollectionService {
     }
 
     try {
-      // Try WebSocket client first, fallback to HTTP
       let stats: EventStats | null = null;
       
-      try {
-        stats = await this.primalClient.getEventStats(post.event_id);
-      } catch (wsError) {
-        console.log(`🔄 WebSocket failed for ${post.event_id}, trying HTTP fallback...`);
+      if (this.useRelayStats) {
+        // Use relay-based stats collection (primary method)
+        console.log(`📡 Collecting stats from Nostr relays for ${post.event_id.substring(0, 20)}...`);
         try {
-          stats = await this.httpFallback.getEventStats(post.event_id);
-        } catch (httpError) {
-          throw new Error(`Both WebSocket and HTTP failed: ${wsError}; ${httpError}`);
+          stats = await this.relayCollector.getEventStats(post.event_id);
+        } catch (relayError) {
+          console.log(`🔄 Relay collection failed for ${post.event_id.substring(0, 20)}, trying Primal fallback...`);
+          // Fallback to Primal API
+          try {
+            stats = await this.primalClient.getEventStats(post.event_id);
+          } catch (wsError) {
+            try {
+              stats = await this.httpFallback.getEventStats(post.event_id);
+            } catch (httpError) {
+              throw new Error(`All methods failed - Relay: ${relayError}; WS: ${wsError}; HTTP: ${httpError}`);
+            }
+          }
+        }
+      } else {
+        // Use Primal API (legacy method)
+        try {
+          stats = await this.primalClient.getEventStats(post.event_id);
+        } catch (wsError) {
+          console.log(`🔄 WebSocket failed for ${post.event_id}, trying HTTP fallback...`);
+          try {
+            stats = await this.httpFallback.getEventStats(post.event_id);
+          } catch (httpError) {
+            throw new Error(`Both WebSocket and HTTP failed: ${wsError}; ${httpError}`);
+          }
         }
       }
 
@@ -302,6 +329,7 @@ export class StatsCollectionService {
 
   disconnect(): void {
     this.primalClient.disconnect();
+    this.relayCollector.disconnect();
     console.log('🔌 Stats collection service disconnected');
   }
 }
