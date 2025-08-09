@@ -33,6 +33,108 @@ export class WebServer {
   }
 
   private setupRoutes() {
+    // Note Management Endpoints
+    
+    // Get all notes with counts
+    this.app.get('/api/notes', async (req, res) => {
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        const notes = await this.db.getNotesWithCounts(accountId);
+        res.json(notes);
+      } catch (error) {
+        console.error('Error fetching notes:', error);
+        res.status(500).json({ error: 'Failed to fetch notes' });
+      }
+    });
+
+    // Get specific note with its posts
+    this.app.get('/api/notes/:id', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        const data = await this.db.getNoteWithPosts(noteId);
+        if (!data.note) {
+          return res.status(404).json({ error: 'Note not found' });
+        }
+        res.json(data);
+      } catch (error) {
+        console.error('Error fetching note:', error);
+        res.status(500).json({ error: 'Failed to fetch note' });
+      }
+    });
+
+    // Create new note
+    this.app.post('/api/notes', async (req, res) => {
+      try {
+        const { content, title, accountId, metadata, scheduleImmediately, scheduledFor } = req.body;
+        
+        if (!content || !accountId) {
+          return res.status(400).json({ error: 'Content and accountId are required' });
+        }
+        
+        // Create note
+        const noteId = await this.db.addNote(content, title || null, accountId, metadata);
+        
+        // Optionally schedule immediately
+        if (scheduleImmediately && scheduledFor) {
+          const postId = await this.db.schedulePostFromNote(
+            noteId,
+            new Date(scheduledFor),
+            accountId
+          );
+          
+          res.json({ 
+            noteId, 
+            postId,
+            message: 'Note created and post scheduled successfully' 
+          });
+        } else {
+          res.json({ noteId, message: 'Note created successfully' });
+        }
+      } catch (error) {
+        console.error('Error creating note:', error);
+        res.status(500).json({ error: 'Failed to create note' });
+      }
+    });
+
+    // Schedule post from existing note
+    this.app.post('/api/notes/:id/schedule', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        const { scheduledFor, accountId, apiEndpoint, publishMethod } = req.body;
+        
+        if (!scheduledFor || !accountId) {
+          return res.status(400).json({ error: 'scheduledFor and accountId are required' });
+        }
+        
+        const postId = await this.db.schedulePostFromNote(
+          noteId,
+          new Date(scheduledFor),
+          accountId,
+          apiEndpoint,
+          publishMethod as 'api' | 'nostrmq' | 'direct'
+        );
+        
+        res.json({ postId, message: 'Post scheduled successfully' });
+      } catch (error) {
+        console.error('Error scheduling post:', error);
+        res.status(500).json({ error: 'Failed to schedule post' });
+      }
+    });
+
+    // Get all posts for a specific note
+    this.app.get('/api/notes/:id/posts', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        const data = await this.db.getNoteWithPosts(noteId);
+        res.json(data.posts);
+      } catch (error) {
+        console.error('Error fetching posts for note:', error);
+        res.status(500).json({ error: 'Failed to fetch posts' });
+      }
+    });
+
+    // Post Management Endpoints (Legacy compatibility)
+    
     // Get all posts (optionally filtered by account)
     this.app.get('/api/posts', async (req, res) => {
       try {
@@ -421,8 +523,12 @@ export class WebServer {
 
   start(): Promise<void> {
     return new Promise((resolve) => {
-      this.app.listen(this.port, () => {
-        console.log(`🌐 Web UI available at http://localhost:${this.port}`);
+      const server = this.app.listen(this.port, '0.0.0.0', () => {
+        const address = server.address();
+        const host = address && typeof address !== 'string' ? address.address : '0.0.0.0';
+        const port = address && typeof address !== 'string' ? address.port : this.port;
+        console.log(`🌐 Web UI listening on ${host}:${port}`);
+        console.log(`   Access at: http://localhost:${port}`);
         resolve();
       });
     });

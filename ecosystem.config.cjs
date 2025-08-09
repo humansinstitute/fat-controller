@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'fat-controller',
+      name: 'fcdev',
       script: 'dist/index.js',
       args: 'daemon',
       instances: 1,
