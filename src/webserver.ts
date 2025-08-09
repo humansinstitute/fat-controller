@@ -7,6 +7,9 @@ import { nip19 } from 'nostr-tools';
 import PostDatabase from './database/db.js';
 import { PostScheduler } from './scheduler.js';
 import { storeNsecInKeychain, deleteNsecFromKeychain, generateKeychainReference, isKeychainAvailable } from './keychain.service.js';
+import StatsSchedulerService from './services/stats-scheduler.service.js';
+import StatsCollectionService from './services/stats-collection.service.js';
+import BackgroundJobService from './services/background-jobs.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,12 +19,14 @@ export class WebServer {
   private db: PostDatabase;
   private port: number;
   private scheduler: PostScheduler | null = null;
+  private statsScheduler: StatsSchedulerService | null = null;
 
-  constructor(port: number = 3001, scheduler?: PostScheduler) {
+  constructor(port: number = 3001, scheduler?: PostScheduler, statsScheduler?: StatsSchedulerService) {
     this.app = express();
     this.db = new PostDatabase();
     this.port = port;
     this.scheduler = scheduler || null;
+    this.statsScheduler = statsScheduler || null;
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -47,7 +52,7 @@ export class WebServer {
       }
     });
 
-    // Get specific note with its posts
+    // Get specific note with its posts and stats
     this.app.get('/api/notes/:id', async (req, res) => {
       try {
         const noteId = parseInt(req.params.id);
@@ -55,7 +60,18 @@ export class WebServer {
         if (!data.note) {
           return res.status(404).json({ error: 'Note not found' });
         }
-        res.json(data);
+
+        // Get posts with stats
+        const postsWithStats = await this.db.getAllPostsWithStats(noteId);
+        
+        // Get aggregate stats
+        const aggregateStats = await this.db.getAggregateStats(noteId);
+
+        res.json({
+          note: data.note,
+          posts: postsWithStats,
+          aggregate_stats: aggregateStats
+        });
       } catch (error) {
         console.error('Error fetching note:', error);
         res.status(500).json({ error: 'Failed to fetch note' });
@@ -351,6 +367,149 @@ export class WebServer {
         console.error('Error in manual publish endpoint:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         res.status(500).json({ error: errorMessage });
+      }
+    });
+
+    // Stats management endpoints
+    
+    // Manual refresh stats for a note
+    this.app.post('/api/notes/:id/refresh-stats', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        
+        if (!this.statsScheduler) {
+          return res.status(503).json({ error: 'Stats service not available' });
+        }
+
+        // Verify note exists
+        const { note } = await this.db.getNoteWithPosts(noteId);
+        if (!note) {
+          return res.status(404).json({ error: 'Note not found' });
+        }
+
+        // Queue manual refresh job
+        const jobId = this.statsScheduler.triggerNoteStatsRefresh(noteId, req.body.user_id);
+        
+        res.json({
+          message: 'Stats refresh initiated',
+          job_id: jobId,
+          note_id: noteId
+        });
+      } catch (error) {
+        console.error('Error refreshing stats:', error);
+        res.status(500).json({ error: 'Failed to refresh stats' });
+      }
+    });
+
+    // Get aggregate stats for a note
+    this.app.get('/api/notes/:id/aggregate-stats', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        const stats = await this.db.getAggregateStats(noteId);
+        res.json(stats);
+      } catch (error) {
+        console.error('Error fetching aggregate stats:', error);
+        res.status(500).json({ error: 'Failed to fetch aggregate stats' });
+      }
+    });
+
+    // Get stats for a specific post
+    this.app.get('/api/posts/:id/stats', async (req, res) => {
+      try {
+        const postId = parseInt(req.params.id);
+        const stats = await this.db.getPostStats(postId);
+        
+        if (!stats) {
+          return res.status(404).json({ error: 'Post stats not found' });
+        }
+        
+        res.json(stats);
+      } catch (error) {
+        console.error('Error fetching post stats:', error);
+        res.status(500).json({ error: 'Failed to fetch post stats' });
+      }
+    });
+
+    // Get stats scheduler status (admin endpoint)
+    this.app.get('/api/stats/status', async (req, res) => {
+      try {
+        if (!this.statsScheduler) {
+          return res.json({
+            stats_service_available: false,
+            message: 'Stats scheduler not initialized'
+          });
+        }
+
+        const status = this.statsScheduler.getSchedulerStatus();
+        res.json({
+          stats_service_available: true,
+          ...status
+        });
+      } catch (error) {
+        console.error('Error fetching stats status:', error);
+        res.status(500).json({ error: 'Failed to fetch stats status' });
+      }
+    });
+
+    // Trigger manual stats collection (admin endpoint)
+    this.app.post('/api/stats/collect', async (req, res) => {
+      try {
+        if (!this.statsScheduler) {
+          return res.status(503).json({ error: 'Stats service not available' });
+        }
+
+        const jobId = this.statsScheduler.triggerManualStatsCollection();
+        
+        res.json({
+          message: 'Manual stats collection initiated',
+          job_id: jobId
+        });
+      } catch (error) {
+        console.error('Error triggering stats collection:', error);
+        res.status(500).json({ error: 'Failed to trigger stats collection' });
+      }
+    });
+
+    // Get background job status
+    this.app.get('/api/stats/jobs/:id', async (req, res) => {
+      try {
+        const jobId = req.params.id;
+        
+        if (!this.statsScheduler) {
+          return res.status(503).json({ error: 'Stats service not available' });
+        }
+
+        const backgroundJobs = this.statsScheduler.getBackgroundJobService();
+        const job = backgroundJobs.getJob(jobId);
+        
+        if (!job) {
+          return res.status(404).json({ error: 'Job not found' });
+        }
+        
+        res.json(job);
+      } catch (error) {
+        console.error('Error fetching job status:', error);
+        res.status(500).json({ error: 'Failed to fetch job status' });
+      }
+    });
+
+    // List all background jobs (admin endpoint)
+    this.app.get('/api/stats/jobs', async (req, res) => {
+      try {
+        if (!this.statsScheduler) {
+          return res.status(503).json({ error: 'Stats service not available' });
+        }
+
+        const backgroundJobs = this.statsScheduler.getBackgroundJobService();
+        const jobs = backgroundJobs.getAllJobs();
+        
+        res.json({
+          jobs,
+          total: jobs.length
+        });
+      } catch (error) {
+        console.error('Error fetching jobs:', error);
+        res.status(500).json({ error: 'Failed to fetch jobs' });
       }
     });
 

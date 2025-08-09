@@ -667,6 +667,172 @@
                 gap: 20px;
             }
         }
+        
+        /* Stats Display Styles */
+        .aggregate-stats {
+            background: linear-gradient(135deg, #f8f9ff 0%, #e6f3ff 100%);
+            border: 1px solid #d1e7ff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .aggregate-stats h3 {
+            color: #2c5aa0;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid rgba(44, 90, 160, 0.1);
+        }
+        
+        .stat-icon {
+            font-size: 20px;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c5aa0;
+            margin-bottom: 2px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .refresh-stats-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .refresh-stats-btn:hover {
+            background: #218838;
+        }
+        
+        .refresh-stats-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .refresh-stats-btn .loading {
+            display: none;
+        }
+        
+        .refresh-stats-btn.loading .loading {
+            display: inline;
+        }
+        
+        .refresh-stats-btn.loading .text {
+            display: none;
+        }
+        
+        .stats-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(44, 90, 160, 0.1);
+        }
+        
+        .stats-last-updated {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        /* Individual Post Stats */
+        .post-stats {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 10px;
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .post-stats.unavailable {
+            opacity: 0.6;
+            background: #f5f5f5;
+        }
+        
+        .post-stats-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .post-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+        }
+        
+        .post-stat .icon {
+            font-size: 14px;
+        }
+        
+        .post-stat .value {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .post-stats-status {
+            font-size: 11px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .post-stats-status.unknown {
+            color: #ffc107;
+        }
+        
+        .post-stats-status.error {
+            color: #dc3545;
+        }
+        
+        .post-stats-status.loading {
+            color: #007bff;
+        }
+        
+        /* Hide stats for unpublished posts */
+        .post-item[data-status="pending"] .post-stats,
+        .post-item[data-status="failed"] .post-stats {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -712,6 +878,43 @@
                     </div>
                     <button class="btn-schedule" onclick="showScheduleModal()">+ Schedule New Post</button>
                 </div>
+                
+                <!-- Aggregate Stats Section -->
+                <div id="aggregate-stats" class="aggregate-stats" style="display: none;">
+                    <h3>
+                        Total Performance
+                        <button class="refresh-stats-btn" onclick="refreshNoteStats()">
+                            <span class="loading">🔄</span>
+                            <span class="text">🔄 Refresh Stats</span>
+                        </button>
+                    </h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-icon">❤️</span>
+                            <div class="stat-value" id="total-likes">0</div>
+                            <div class="stat-label">Total Likes</div>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-icon">🔄</span>
+                            <div class="stat-value" id="total-reposts">0</div>
+                            <div class="stat-label">Total Reposts</div>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-icon">⚡</span>
+                            <div class="stat-value" id="total-zaps">0</div>
+                            <div class="stat-label">Total Zaps (sats)</div>
+                        </div>
+                    </div>
+                    <div class="stats-footer">
+                        <div class="stats-last-updated">
+                            Last updated: <span id="stats-last-updated">Never</span>
+                        </div>
+                        <div class="stats-coverage">
+                            <span id="posts-with-stats">0</span>/<span id="total-published-posts">0</span> posts with stats
+                        </div>
+                    </div>
+                </div>
+                
                 <div id="posts-list" class="posts-list">
                     <!-- Posts will be loaded here -->
                 </div>
@@ -1086,6 +1289,9 @@
                 // Update account for this note
                 currentAccountId = data.note.account_id;
                 
+                // Update aggregate stats
+                updateAggregateStats(data.aggregate_stats);
+                
                 // Display posts
                 const postsContainer = document.getElementById('posts-list');
                 
@@ -1098,7 +1304,7 @@
                     `;
                 } else {
                     postsContainer.innerHTML = data.posts.map(post => `
-                        <div class="post-item">
+                        <div class="post-item" data-status="${post.status}">
                             <div class="post-info">
                                 <div class="post-scheduled">
                                     ${new Date(post.scheduled_for).toLocaleString()}
@@ -1118,6 +1324,7 @@
                                     <button class="action-btn btn-delete" onclick="deletePost(${post.id})">Delete</button>
                                 ` : ''}
                             </div>
+                            ${post.status === 'published' ? renderPostStats(post.stats) : ''}
                         </div>
                     `).join('');
                 }
@@ -1128,6 +1335,179 @@
             } catch (error) {
                 console.error('Failed to load note posts:', error);
             }
+        }
+        
+        // Stats Helper Functions
+        function updateAggregateStats(aggregateStats) {
+            const statsContainer = document.getElementById('aggregate-stats');
+            
+            if (aggregateStats && aggregateStats.total_posts > 0) {
+                // Update values
+                document.getElementById('total-likes').textContent = formatNumber(aggregateStats.total_likes);
+                document.getElementById('total-reposts').textContent = formatNumber(aggregateStats.total_reposts);
+                document.getElementById('total-zaps').textContent = formatSats(aggregateStats.total_zap_amount);
+                document.getElementById('posts-with-stats').textContent = aggregateStats.posts_with_stats;
+                document.getElementById('total-published-posts').textContent = aggregateStats.total_posts;
+                document.getElementById('stats-last-updated').textContent = 
+                    aggregateStats.last_updated ? formatTimeAgo(aggregateStats.last_updated) : 'Never';
+                
+                // Show the stats container
+                statsContainer.style.display = 'block';
+            } else {
+                // Hide the stats container if no published posts
+                statsContainer.style.display = 'none';
+            }
+        }
+        
+        function renderPostStats(stats) {
+            if (!stats) {
+                return `
+                    <div class="post-stats unavailable">
+                        <div class="post-stats-row">
+                            <span class="post-stats-status">Stats unavailable</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            let statusClass = 'success';
+            let statusText = 'Updated';
+            
+            if (stats.status === 'unknown') {
+                statusClass = 'unknown';
+                statusText = 'Unknown';
+            } else if (stats.status === 'error') {
+                statusClass = 'error';
+                statusText = 'Error';
+            }
+            
+            return `
+                <div class="post-stats">
+                    <div class="post-stats-row">
+                        <div class="post-stat">
+                            <span class="icon">❤️</span>
+                            <span class="value">${stats.likes}</span>
+                        </div>
+                        <div class="post-stat">
+                            <span class="icon">🔄</span>
+                            <span class="value">${stats.reposts}</span>
+                        </div>
+                        <div class="post-stat">
+                            <span class="icon">⚡</span>
+                            <span class="value">${formatSats(stats.zap_amount)} sats</span>
+                        </div>
+                    </div>
+                    <div class="post-stats-status ${statusClass}">${statusText}</div>
+                </div>
+            `;
+        }
+        
+        async function refreshNoteStats() {
+            if (!currentNoteId) return;
+            
+            const button = document.querySelector('.refresh-stats-btn');
+            button.disabled = true;
+            button.classList.add('loading');
+            
+            try {
+                const response = await fetch(`/api/notes/${currentNoteId}/refresh-stats`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        user_id: 'web-user'
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Stats refresh initiated:', result);
+                    
+                    // Poll for completion and refresh the page
+                    pollForStatsUpdate(result.job_id);
+                } else {
+                    const error = await response.json();
+                    console.error('Failed to refresh stats:', error);
+                    alert('Failed to refresh stats: ' + error.error);
+                }
+            } catch (error) {
+                console.error('Failed to refresh stats:', error);
+                alert('Failed to refresh stats: ' + error.message);
+            } finally {
+                // Re-enable button after a short delay
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.classList.remove('loading');
+                }, 2000);
+            }
+        }
+        
+        async function pollForStatsUpdate(jobId) {
+            let attempts = 0;
+            const maxAttempts = 30; // 30 * 2 seconds = 1 minute timeout
+            
+            const poll = async () => {
+                try {
+                    const response = await fetch(`/api/stats/jobs/${jobId}`);
+                    if (response.ok) {
+                        const job = await response.json();
+                        
+                        if (job.status === 'completed') {
+                            // Refresh the page to show updated stats
+                            showNotePosts(currentNoteId);
+                            return;
+                        } else if (job.status === 'failed') {
+                            console.error('Stats refresh job failed:', job.error);
+                            return;
+                        }
+                    }
+                    
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        setTimeout(poll, 2000); // Poll every 2 seconds
+                    }
+                } catch (error) {
+                    console.error('Error polling for stats update:', error);
+                }
+            };
+            
+            // Start polling after a short delay
+            setTimeout(poll, 2000);
+        }
+        
+        // Utility Functions
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(1) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        }
+        
+        function formatSats(sats) {
+            if (sats >= 100000000) { // 1 BTC = 100,000,000 sats
+                return (sats / 100000000).toFixed(2) + ' BTC';
+            } else if (sats >= 1000) {
+                return (sats / 1000).toFixed(1) + 'K';
+            }
+            return sats.toString();
+        }
+        
+        function formatTimeAgo(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
+            return date.toLocaleDateString();
         }
         
         // Modal Management
