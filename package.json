@@ -7,7 +7,17 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "pm2:dev": "pm2 start ecosystem.dev.config.cjs",
+    "pm2:prod": "pm2 start ecosystem.prod.config.cjs",
+    "pm2:stop:dev": "pm2 stop fcdev",
+    "pm2:stop:prod": "pm2 stop fcprod",
+    "pm2:restart:dev": "pm2 restart fcdev || npm run pm2:dev",
+    "pm2:restart:prod": "pm2 restart fcprod || npm run pm2:prod",
+    "pm2:logs:dev": "pm2 logs fcdev",
+    "pm2:logs:prod": "pm2 logs fcprod",
+    "pm2:delete": "pm2 delete fcdev fcprod || true",
+    "pm2:status": "pm2 status"
   },
   "dependencies": {
     "@nostr-dev-kit/ndk": "^2.14.33",
