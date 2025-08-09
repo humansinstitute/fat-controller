@@ -1,5 +1,6 @@
 import NDK, { NDKEvent, NDKKind, NDKFilter } from "@nostr-dev-kit/ndk";
 import { EventStats } from './primal-client.js';
+import * as bolt11 from 'bolt11';
 
 export interface RelayStatsConfig {
   relayUrls?: string[];
@@ -21,7 +22,7 @@ export class RelayStatsCollector {
   ];
 
   constructor(config: RelayStatsConfig = {}) {
-    this.timeout = config.timeout || 10000; // 10 seconds 
+    this.timeout = config.timeout || 15000; // 15 seconds (increased from 10)
     this.maxEvents = config.maxEvents || 500; // Max events to fetch per type
     
     const relays = config.relayUrls || this.defaultRelays;
@@ -94,7 +95,16 @@ export class RelayStatsCollector {
 
       if (!events || events.length === 0) {
         console.log(`❓ No interaction events found for ${eventId.substring(0, 20)}`);
-        return null;
+        // Return stats with zero values rather than null
+        return {
+          event_id: eventId,
+          likes: 0,
+          reposts: 0,
+          zaps: 0,
+          zap_amount_sats: 0,
+          replies: 0,
+          last_updated: new Date().toISOString()
+        };
       }
 
       // Process and count the events
@@ -156,12 +166,21 @@ export class RelayStatsCollector {
             
           case 9735: // Zap receipts
             zaps++;
-            // Try to extract zap amount from bolt11 invoice
-            const bolt11Tag = event.tags.find(tag => tag[0] === 'bolt11');
-            if (bolt11Tag && bolt11Tag[1]) {
-              const amount = this.extractAmountFromBolt11(bolt11Tag[1]);
-              if (amount > 0) {
-                zap_amount_sats += amount;
+            // First try to get amount from 'amount' tag (millisatoshis)
+            const amountTag = event.tags.find(tag => tag[0] === 'amount');
+            if (amountTag && amountTag[1]) {
+              const milliSats = parseInt(amountTag[1], 10);
+              if (!isNaN(milliSats)) {
+                zap_amount_sats += Math.floor(milliSats / 1000); // Convert millisats to sats
+              }
+            } else {
+              // Fallback: try to extract zap amount from bolt11 invoice
+              const bolt11Tag = event.tags.find(tag => tag[0] === 'bolt11');
+              if (bolt11Tag && bolt11Tag[1]) {
+                const amount = this.extractAmountFromBolt11(bolt11Tag[1]);
+                if (amount > 0) {
+                  zap_amount_sats += amount;
+                }
               }
             }
             break;
@@ -190,24 +209,17 @@ export class RelayStatsCollector {
     };
   }
 
-  private extractAmountFromBolt11(bolt11: string): number {
+  private extractAmountFromBolt11(bolt11Invoice: string): number {
     try {
-      // BOLT11 invoices encode amount in the human-readable part
-      // Format: ln{amount}{multiplier}
-      const match = bolt11.match(/^ln(\d+)([munp]?)/);
-      if (!match) return 0;
+      // Use proper BOLT11 decoder library
+      const decoded = bolt11.decode(bolt11Invoice);
       
-      const amount = parseInt(match[1]);
-      const multiplier = match[2];
-      
-      // Convert to satoshis based on multiplier
-      switch (multiplier) {
-        case 'm': return Math.floor(amount * 0.1); // milli-bitcoin to sats
-        case 'u': return Math.floor(amount * 0.0001); // micro-bitcoin to sats  
-        case 'n': return Math.floor(amount * 0.0000001); // nano-bitcoin to sats
-        case 'p': return Math.floor(amount * 0.0000000001); // pico-bitcoin to sats
-        default: return amount; // assume sats if no multiplier
+      // BOLT11 amount is in millisatoshis, convert to satoshis
+      if (decoded.millisatoshis) {
+        return Math.floor(parseInt(decoded.millisatoshis) / 1000);
       }
+      
+      return 0;
     } catch (error) {
       console.warn('⚠️  Failed to parse BOLT11 amount:', error);
       return 0;

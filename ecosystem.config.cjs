@@ -23,13 +23,11 @@ module.exports = {
     },
     {
       name: 'fcdev',
-      script: 'tsx',
-      args: 'src/index.ts daemon',
+      script: 'dist/index.js',
+      args: 'daemon',
       instances: 1,
       autorestart: true,
-      watch: ['src'],
-      watch_delay: 1000,
-      ignore_watch: ['node_modules', 'logs', 'data'],
+      watch: false,
       max_memory_restart: '512M',
       env: {
         NODE_ENV: 'development',

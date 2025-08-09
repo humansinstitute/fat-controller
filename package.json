@@ -22,6 +22,7 @@
   "dependencies": {
     "@nostr-dev-kit/ndk": "^2.14.33",
     "@types/ws": "^8.18.1",
+    "bolt11": "^1.4.1",
     "commander": "^11.1.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
