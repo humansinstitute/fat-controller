@@ -16,15 +16,40 @@
             background: linear-gradient(135deg, #1a1a2e 0%, #0f0f23 100%);
             min-height: 100vh;
             padding: 20px;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
         }
         
         .container {
-            max-width: 1200px;
+            width: 90%;
+            max-width: none;
             margin: 0 auto;
             background: white;
             border-radius: 10px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: calc(100vh - 40px);
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                width: 80%;
+            }
+        }
+
+        @media (max-width: 767px) {
+            .container {
+                width: 95%;
+                margin: 0 auto;
+            }
+            
+            body {
+                padding: 10px;
+            }
         }
         
         header {
@@ -109,6 +134,9 @@
         
         main {
             padding: 30px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
         
         .view {
@@ -116,7 +144,9 @@
         }
         
         .view.active {
-            display: block;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
         }
         
         /* Notes View Styles */
@@ -441,6 +471,12 @@
             text-align: center;
             padding: 60px 20px;
             color: #999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            min-height: 200px;
         }
         
         .empty-state h3 {
@@ -525,6 +561,112 @@
             border-left: 4px solid #28a745;
             background: #f8fff9;
         }
+
+        /* Quick Schedule Styles */
+        .quick-schedule-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            max-width: 1000px;
+        }
+
+        .quick-schedule-form {
+            background: #f7f7f7;
+            padding: 25px;
+            border-radius: 8px;
+        }
+
+        .quick-schedule-form textarea {
+            min-height: 150px;
+            resize: vertical;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .character-count {
+            text-align: right;
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .quick-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .quick-actions button {
+            flex: 1;
+        }
+
+        .quick-preview {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 25px;
+        }
+
+        .quick-preview h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .preview-content {
+            min-height: 150px;
+            line-height: 1.6;
+            font-size: 16px;
+            color: #333;
+            word-wrap: break-word;
+        }
+
+        .preview-placeholder {
+            color: #999;
+            font-style: italic;
+        }
+
+        .preview-link {
+            color: #1a1a2e;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .preview-media {
+            margin: 15px 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e0e0e0;
+        }
+
+        .preview-media img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .preview-media video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .preview-hashtag {
+            color: #1a1a2e;
+            font-weight: 500;
+        }
+
+        .preview-mention {
+            color: #1a1a2e;
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            .quick-schedule-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -575,11 +717,40 @@
                 </div>
             </div>
             
-            <!-- Quick Schedule View (Legacy) -->
+            <!-- Quick Schedule View -->
             <div id="schedule-view" class="view">
                 <h2>Quick Schedule</h2>
-                <p style="color: #666; margin-bottom: 20px;">Create a note and immediately schedule it</p>
-                <!-- Include existing scheduling form here -->
+                <p style="color: #666; margin-bottom: 30px;">Create and post immediately to the network</p>
+                
+                <div class="quick-schedule-container">
+                    <div class="quick-schedule-form">
+                        <div class="form-group">
+                            <label for="quick-content">What's on your mind?</label>
+                            <textarea id="quick-content" placeholder="Share your thoughts, links, or updates..." rows="6"></textarea>
+                            <div class="character-count">
+                                <span id="char-count">0</span> characters
+                            </div>
+                        </div>
+                        
+                        <div class="quick-actions">
+                            <button type="button" class="btn-new-note" id="post-now-btn" disabled>
+                                ⚡ Post Now
+                            </button>
+                            <button type="button" class="btn-cancel" id="clear-btn">
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="quick-preview">
+                        <h3>Preview</h3>
+                        <div id="preview-content" class="preview-content">
+                            <div class="preview-placeholder">
+                                Your post preview will appear here as you type...
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Accounts View -->
@@ -762,6 +933,8 @@
                 loadNotes();
             } else if (viewName === 'accounts') {
                 loadAccountsList();
+            } else if (viewName === 'schedule') {
+                initializeQuickSchedule();
             }
         }
         
@@ -1422,6 +1595,218 @@
                 alert('Error adding account: ' + error.message);
             }
         });
+
+        // Quick Schedule Functionality
+        let quickScheduleInitialized = false;
+
+        function initializeQuickSchedule() {
+            // Prevent double initialization
+            if (quickScheduleInitialized) return;
+            
+            console.log('Initializing Quick Schedule...');
+            
+            // Use a timeout to ensure DOM is ready
+            setTimeout(() => {
+                const quickContentTextarea = document.getElementById('quick-content');
+                const previewContent = document.getElementById('preview-content');
+                const charCount = document.getElementById('char-count');
+                const postNowBtn = document.getElementById('post-now-btn');
+                const clearBtn = document.getElementById('clear-btn');
+
+                console.log('Elements found:', {
+                    textarea: !!quickContentTextarea,
+                    preview: !!previewContent,
+                    charCount: !!charCount,
+                    postBtn: !!postNowBtn,
+                    clearBtn: !!clearBtn
+                });
+
+                if (quickContentTextarea) {
+                    // Live preview and character count
+                    quickContentTextarea.addEventListener('input', (e) => {
+                        console.log('Input event fired, content length:', e.target.value.length);
+                        const content = e.target.value;
+                        
+                        if (charCount) {
+                            charCount.textContent = content.length;
+                        }
+                        
+                        // Enable/disable post button
+                        if (postNowBtn) {
+                            postNowBtn.disabled = content.trim().length === 0;
+                        }
+                        
+                        // Update preview
+                        updatePreview(content);
+                    });
+                    
+                    // Test the preview immediately
+                    updatePreview('');
+                }
+
+                if (clearBtn) {
+                    clearBtn.addEventListener('click', () => {
+                        console.log('Clear button clicked');
+                        if (quickContentTextarea) {
+                            quickContentTextarea.value = '';
+                        }
+                        if (charCount) {
+                            charCount.textContent = '0';
+                        }
+                        if (postNowBtn) {
+                            postNowBtn.disabled = true;
+                        }
+                        updatePreview('');
+                    });
+                }
+
+                if (postNowBtn) {
+                    postNowBtn.addEventListener('click', async () => {
+                        const content = quickContentTextarea?.value?.trim() || '';
+                        if (!content) return;
+
+                        if (!selectedAccountId) {
+                            alert('Please select an account first');
+                            return;
+                        }
+
+                        try {
+                            postNowBtn.disabled = true;
+                            postNowBtn.textContent = 'Posting...';
+
+                            // Create note first
+                            const noteResponse = await fetch('/api/notes', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    title: `Quick post ${new Date().toLocaleString()}`,
+                                    content: content,
+                                    accountId: selectedAccountId
+                                })
+                            });
+
+                            if (!noteResponse.ok) {
+                                throw new Error('Failed to create note');
+                            }
+
+                            const noteData = await noteResponse.json();
+                            const noteId = noteData.id || noteData.noteId;
+
+                            // Schedule post immediately
+                            const postResponse = await fetch(`/api/notes/${noteId}/schedule`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    scheduledFor: new Date().toISOString(),
+                                    accountId: selectedAccountId
+                                })
+                            });
+
+                            if (!postResponse.ok) {
+                                throw new Error('Failed to schedule post');
+                            }
+
+                            // Clear form and show success
+                            if (quickContentTextarea) {
+                                quickContentTextarea.value = '';
+                            }
+                            if (charCount) {
+                                charCount.textContent = '0';
+                            }
+                            updatePreview('');
+                            
+                            alert('Post published successfully!');
+                            
+                            // Refresh notes if we're on the notes view
+                            if (document.getElementById('notes-view').classList.contains('active')) {
+                                loadNotes();
+                            }
+
+                        } catch (error) {
+                            console.error('Error posting:', error);
+                            alert('Failed to post: ' + error.message);
+                        } finally {
+                            postNowBtn.disabled = false;
+                            postNowBtn.textContent = '⚡ Post Now';
+                        }
+                    });
+                }
+
+                quickScheduleInitialized = true;
+                console.log('Quick Schedule initialization complete');
+                
+            }, 100); // Small delay to ensure DOM is ready
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Preview rendering function
+        function updatePreview(content) {
+            const previewContent = document.getElementById('preview-content');
+            
+            if (!content.trim()) {
+                previewContent.innerHTML = '<div class="preview-placeholder">Your post preview will appear here as you type...</div>';
+                return;
+            }
+
+            // Process the content for preview
+            let processedContent = escapeHtml(content);
+            
+            // Convert URLs to clickable links and detect media
+            processedContent = processedContent.replace(
+                /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/gi,
+                (match) => {
+                    const url = match;
+                    
+                    // Check if it's an image
+                    if (/\.(jpg|jpeg|png|gif|webp)(\?[^\s]*)?$/i.test(url)) {
+                        return `<a href="${url}" class="preview-link" target="_blank" rel="noopener">${url}</a>
+                                <div class="preview-media">
+                                    <img src="${url}" alt="Preview image" onerror="this.style.display='none'">
+                                </div>`;
+                    }
+                    
+                    // Check if it's a video
+                    if (/\.(mp4|webm|ogg|mov)(\?[^\s]*)?$/i.test(url)) {
+                        return `<a href="${url}" class="preview-link" target="_blank" rel="noopener">${url}</a>
+                                <div class="preview-media">
+                                    <video controls muted>
+                                        <source src="${url}">
+                                        Your browser doesn't support video playback.
+                                    </video>
+                                </div>`;
+                    }
+                    
+                    // Regular link
+                    return `<a href="${url}" class="preview-link" target="_blank" rel="noopener">${url}</a>`;
+                }
+            );
+            
+            // Convert hashtags
+            processedContent = processedContent.replace(
+                /#([a-zA-Z0-9_]+)/g,
+                '<span class="preview-hashtag">#$1</span>'
+            );
+            
+            // Convert mentions
+            processedContent = processedContent.replace(
+                /@([a-zA-Z0-9_]+)/g,
+                '<span class="preview-mention">@$1</span>'
+            );
+            
+            // Convert line breaks
+            processedContent = processedContent.replace(/\n/g, '<br>');
+            
+            previewContent.innerHTML = processedContent;
+        }
     </script>
     
     <!-- Nostr Tools for key derivation -->
