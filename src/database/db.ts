@@ -375,6 +375,26 @@ class PostDatabase {
     });
   }
 
+  deleteNote(id: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.serialize(() => {
+        // First delete all posts for this note
+        this.db.run('DELETE FROM posts WHERE note_id = ?', [id], (err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+        });
+        
+        // Then delete the note
+        this.db.run('DELETE FROM notes WHERE id = ?', [id], (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    });
+  }
+
   // Account management methods
   addAccount(name: string, npub: string, publishMethod: 'api' | 'nostrmq' | 'direct' = 'direct', apiEndpoint?: string, nostrmqTarget?: string, nsec?: string, relays?: string, keychainRef?: string): Promise<number> {
     return new Promise((resolve, reject) => {

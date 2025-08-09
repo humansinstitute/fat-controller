@@ -133,6 +133,18 @@ export class WebServer {
       }
     });
 
+    // Delete note (and all its posts)
+    this.app.delete('/api/notes/:id', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        await this.db.deleteNote(noteId);
+        res.json({ message: 'Note and all associated posts deleted successfully' });
+      } catch (error) {
+        console.error('Error deleting note:', error);
+        res.status(500).json({ error: 'Failed to delete note' });
+      }
+    });
+
     // Post Management Endpoints (Legacy compatibility)
     
     // Get all posts (optionally filtered by account)
