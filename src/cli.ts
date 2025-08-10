@@ -193,6 +193,87 @@ program
     db.close();
   });
 
+// Pin/Unpin commands
+program
+  .command('pin')
+  .description('Pin a note to the top')
+  .argument('<noteId>', 'Note ID to pin')
+  .action(async (noteId) => {
+    const db = new PostDatabase();
+    
+    // Get the note to verify it exists
+    const noteData = await db.getNoteWithPosts(parseInt(noteId));
+    if (!noteData.note) {
+      console.log(`❌ Note ${noteId} not found`);
+      db.close();
+      return;
+    }
+    
+    try {
+      await db.pinNote(parseInt(noteId));
+      const title = noteData.note.title || 'Untitled Note';
+      console.log(`📌 Pinned note: "${title}"`);
+    } catch (error) {
+      console.log(`❌ Failed to pin note: ${error}`);
+    }
+    
+    db.close();
+  });
+
+program
+  .command('unpin')
+  .description('Unpin a note')
+  .argument('<noteId>', 'Note ID to unpin')
+  .action(async (noteId) => {
+    const db = new PostDatabase();
+    
+    // Get the note to verify it exists
+    const noteData = await db.getNoteWithPosts(parseInt(noteId));
+    if (!noteData.note) {
+      console.log(`❌ Note ${noteId} not found`);
+      db.close();
+      return;
+    }
+    
+    try {
+      await db.unpinNote(parseInt(noteId));
+      const title = noteData.note.title || 'Untitled Note';
+      console.log(`📍 Unpinned note: "${title}"`);
+    } catch (error) {
+      console.log(`❌ Failed to unpin note: ${error}`);
+    }
+    
+    db.close();
+  });
+
+program
+  .command('pinned-notes')
+  .description('List all pinned notes')
+  .action(async () => {
+    const db = new PostDatabase();
+    const notes = await db.getPinnedNotes();
+    
+    if (notes.length === 0) {
+      console.log('No pinned notes found');
+    } else {
+      console.log(`\n📌 Pinned notes (${notes.length}):`);
+      console.log('─'.repeat(70));
+      notes.forEach(note => {
+        const tags = note.tags ? JSON.parse(note.tags as string) : [];
+        const title = note.title || 'Untitled';
+        const preview = note.content.substring(0, 50) + (note.content.length > 50 ? '...' : '');
+        console.log(`[${note.id}] ${title}`);
+        console.log(`    ${preview}`);
+        if (tags.length > 0) {
+          console.log(`    📌 Tags: ${tags.join(', ')}`);
+        }
+        console.log(`    📊 Published: ${note.published_count} | Upcoming: ${note.upcoming_count}`);
+        console.log('');
+      });
+    }
+    db.close();
+  });
+
 export function runCLI(args: string[]) {
   program.parse(args);
 }

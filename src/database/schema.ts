@@ -6,6 +6,7 @@ export interface Note {
   created_at: string;
   metadata?: string; // JSON field for additional data
   tags?: string; // JSON array of tags
+  pinned?: boolean; // Whether the note is pinned
 }
 
 export interface NoteWithCounts extends Note {
