@@ -52,6 +52,42 @@ export class WebServer {
       }
     });
 
+    // Get notes by tags (must come before /api/notes/:id)
+    this.app.get('/api/notes/by-tags', async (req, res) => {
+      try {
+        console.log('GET /api/notes/by-tags called with query:', req.query);
+        const { tags, logic, accountId } = req.query;
+        
+        if (!tags) {
+          return res.status(400).json({ error: 'Tags parameter is required' });
+        }
+        
+        const tagArray = Array.isArray(tags) ? tags as string[] : (tags as string).split(',');
+        const filterLogic = (logic === 'AND' || logic === 'OR') ? logic : 'OR';
+        const account = accountId ? parseInt(accountId as string) : undefined;
+        
+        console.log('Calling getNotesByTags with:', { tagArray, filterLogic, account });
+        const notes = await this.db.getNotesByTags(tagArray, filterLogic, account);
+        console.log('getNotesByTags returned:', notes.length, 'notes');
+        res.json(notes);
+      } catch (error) {
+        console.error('Error fetching notes by tags:', error);
+        res.status(500).json({ error: 'Failed to fetch notes by tags' });
+      }
+    });
+
+    // Get untagged notes (must come before /api/notes/:id)
+    this.app.get('/api/notes/untagged', async (req, res) => {
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        const notes = await this.db.getUntaggedNotes(accountId);
+        res.json(notes);
+      } catch (error) {
+        console.error('Error fetching untagged notes:', error);
+        res.status(500).json({ error: 'Failed to fetch untagged notes' });
+      }
+    });
+
     // Get specific note with its posts and stats
     this.app.get('/api/notes/:id', async (req, res) => {
       try {
@@ -81,14 +117,14 @@ export class WebServer {
     // Create new note
     this.app.post('/api/notes', async (req, res) => {
       try {
-        const { content, title, accountId, metadata, scheduleImmediately, scheduledFor } = req.body;
+        const { content, title, accountId, metadata, tags, scheduleImmediately, scheduledFor } = req.body;
         
         if (!content || !accountId) {
           return res.status(400).json({ error: 'Content and accountId are required' });
         }
         
         // Create note
-        const noteId = await this.db.addNote(content, title || null, accountId, metadata);
+        const noteId = await this.db.addNote(content, title || null, accountId, metadata, tags);
         
         // Optionally schedule immediately
         if (scheduleImmediately && scheduledFor) {
@@ -158,6 +194,37 @@ export class WebServer {
       } catch (error) {
         console.error('Error deleting note:', error);
         res.status(500).json({ error: 'Failed to delete note' });
+      }
+    });
+
+    // Update note tags
+    this.app.put('/api/notes/:id/tags', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        const { tags } = req.body;
+        
+        if (!Array.isArray(tags)) {
+          return res.status(400).json({ error: 'Tags must be an array' });
+        }
+        
+        await this.db.updateNoteTags(noteId, tags);
+        res.json({ message: 'Tags updated successfully', tags });
+      } catch (error) {
+        console.error('Error updating tags:', error);
+        res.status(500).json({ error: 'Failed to update tags' });
+      }
+    });
+
+    // Tag Management Endpoints
+
+    // Get all tags with usage statistics
+    this.app.get('/api/tags', async (req, res) => {
+      try {
+        const tags = await this.db.getAllTags();
+        res.json(tags);
+      } catch (error) {
+        console.error('Error fetching tags:', error);
+        res.status(500).json({ error: 'Failed to fetch tags' });
       }
     });
 

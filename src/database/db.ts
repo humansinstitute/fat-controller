@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { ScheduledPost, NostrAccount, Note, NoteWithCounts, Post, PostStats, AggregateStats } from './schema.js';
+import { ScheduledPost, NostrAccount, Note, NoteWithCounts, Post, PostStats, AggregateStats, TagInfo } from './schema.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { mkdirSync } from 'fs';
@@ -52,6 +52,7 @@ class PostDatabase {
               account_id INTEGER NOT NULL,
               created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
               metadata TEXT,
+              tags TEXT,
               FOREIGN KEY (account_id) REFERENCES nostr_accounts(id)
             )
           `, (err) => {
@@ -107,6 +108,7 @@ class PostDatabase {
                 // Create indexes
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_account_id ON notes(account_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_tags ON notes(tags)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_note_id ON posts(note_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_event_id ON posts(event_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)');
@@ -125,11 +127,11 @@ class PostDatabase {
   }
 
   // Note management methods
-  addNote(content: string, title: string | null, accountId: number, metadata?: string): Promise<number> {
+  addNote(content: string, title: string | null, accountId: number, metadata?: string, tags?: string[]): Promise<number> {
     return new Promise((resolve, reject) => {
       this.db.run(
-        'INSERT INTO notes (content, title, account_id, metadata) VALUES (?, ?, ?, ?)',
-        [content, title, accountId, metadata || null],
+        'INSERT INTO notes (content, title, account_id, metadata, tags) VALUES (?, ?, ?, ?, ?)',
+        [content, title, accountId, metadata || null, tags ? JSON.stringify(tags) : null],
         function(err) {
           if (err) reject(err);
           else resolve(this.lastID);
@@ -668,6 +670,150 @@ class PostDatabase {
           }));
           resolve(posts);
         }
+      });
+    });
+  }
+
+  // Tag management methods
+  updateNoteTags(noteId: number, tags: string[]): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE notes SET tags = ? WHERE id = ?',
+        [tags.length > 0 ? JSON.stringify(tags) : null, noteId],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  getAllTags(): Promise<TagInfo[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT tags, COUNT(*) as note_count, MAX(created_at) as last_used 
+         FROM notes 
+         WHERE tags IS NOT NULL AND tags != '[]'
+         GROUP BY tags`,
+        [],
+        (err, rows) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          
+          // Parse and aggregate tags from all notes
+          const tagMap = new Map<string, TagInfo>();
+          
+          (rows as any[]).forEach(row => {
+            try {
+              const tags = JSON.parse(row.tags);
+              if (Array.isArray(tags)) {
+                tags.forEach(tag => {
+                  const existing = tagMap.get(tag);
+                  if (existing) {
+                    existing.count += 1;
+                    if (row.last_used > (existing.lastUsed || '')) {
+                      existing.lastUsed = row.last_used;
+                    }
+                  } else {
+                    tagMap.set(tag, {
+                      name: tag,
+                      count: 1,
+                      lastUsed: row.last_used
+                    });
+                  }
+                });
+              }
+            } catch (e) {
+              console.error('Error parsing tags:', e);
+            }
+          });
+          
+          const sortedTags = Array.from(tagMap.values()).sort((a, b) => b.count - a.count);
+          resolve(sortedTags);
+        }
+      );
+    });
+  }
+
+  getNotesByTags(tags: string[], logic: 'AND' | 'OR' = 'OR', accountId?: number): Promise<NoteWithCounts[]> {
+    return new Promise((resolve, reject) => {
+      console.log('Database getNotesByTags called with:', { tags, logic, accountId });
+      let query = `
+        SELECT 
+          n.*,
+          COUNT(CASE WHEN p.status = 'published' THEN 1 END) as published_count,
+          COUNT(CASE WHEN p.status = 'pending' THEN 1 END) as upcoming_count
+        FROM notes n
+        LEFT JOIN posts p ON n.id = p.note_id
+        WHERE 1=1
+      `;
+      
+      const params: any[] = [];
+      
+      if (accountId) {
+        query += ' AND n.account_id = ?';
+        params.push(accountId);
+      }
+      
+      if (tags.length > 0) {
+        if (logic === 'OR') {
+          // Match any of the tags
+          const tagConditions = tags.map(tag => 
+            `json_extract(n.tags, '$') LIKE '%"' || ? || '"%'`
+          ).join(' OR ');
+          query += ` AND (${tagConditions})`;
+          params.push(...tags);
+        } else {
+          // Match all tags
+          tags.forEach(tag => {
+            query += ` AND json_extract(n.tags, '$') LIKE '%"' || ? || '"%'`;
+            params.push(tag);
+          });
+        }
+      }
+      
+      query += ' GROUP BY n.id ORDER BY n.created_at DESC';
+      
+      console.log('Executing SQL:', query);
+      console.log('With params:', params);
+      
+      this.db.all(query, params, (err, rows) => {
+        if (err) {
+          console.error('SQL Error:', err);
+          reject(err);
+        } else {
+          console.log('SQL returned', rows?.length, 'rows');
+          resolve(rows as NoteWithCounts[]);
+        }
+      });
+    });
+  }
+
+  getUntaggedNotes(accountId?: number): Promise<NoteWithCounts[]> {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT 
+          n.*,
+          COUNT(CASE WHEN p.status = 'published' THEN 1 END) as published_count,
+          COUNT(CASE WHEN p.status = 'pending' THEN 1 END) as upcoming_count
+        FROM notes n
+        LEFT JOIN posts p ON n.id = p.note_id
+        WHERE (n.tags IS NULL OR n.tags = '[]')
+      `;
+      
+      const params: any[] = [];
+      if (accountId) {
+        query += ' AND n.account_id = ?';
+        params.push(accountId);
+      }
+      
+      query += ' GROUP BY n.id ORDER BY n.created_at DESC';
+      
+      this.db.all(query, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows as NoteWithCounts[]);
       });
     });
   }

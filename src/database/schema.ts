@@ -5,11 +5,18 @@ export interface Note {
   account_id: number;
   created_at: string;
   metadata?: string; // JSON field for additional data
+  tags?: string; // JSON array of tags
 }
 
 export interface NoteWithCounts extends Note {
   published_count: number;
   upcoming_count: number;
+}
+
+export interface TagInfo {
+  name: string;
+  count: number;
+  lastUsed?: string;
 }
 
 export interface Post {

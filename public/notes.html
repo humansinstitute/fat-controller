@@ -247,6 +247,228 @@
             background: #dc3545;
         }
         
+        /* Tag Styles */
+        .tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        
+        .tag {
+            background: #e9ecef;
+            color: #495057;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        
+        .tag:hover {
+            background: #dee2e6;
+            border-color: #6c757d;
+        }
+        
+        .tag.selected {
+            background: #1a1a2e;
+            color: white;
+            border-color: #1a1a2e;
+        }
+        
+        .tag-input-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        
+        .tag-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .tag-autocomplete {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .tag-autocomplete.show {
+            display: block;
+        }
+        
+        .tag-suggestion {
+            padding: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .tag-suggestion:hover {
+            background: #f0f0f0;
+        }
+        
+        .tag-suggestion.highlighted {
+            background: #e9ecef;
+        }
+        
+        .tag-count {
+            color: #6c757d;
+            font-size: 11px;
+            margin-left: 5px;
+        }
+        
+        .filter-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .filter-title {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .filter-clear {
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: underline;
+        }
+        
+        .filter-clear:hover {
+            color: #495057;
+        }
+        
+        .selected-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .selected-tag {
+            background: #1a1a2e;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .selected-tag .remove {
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .tag-filter-logic {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .tag-filter-logic label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        /* Note Detail Tag Editing */
+        .note-tags-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .tags-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .tags-header h4 {
+            margin: 0;
+            color: #333;
+        }
+        
+        .btn-edit-tags {
+            background: none;
+            border: 1px solid #ccc;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .btn-edit-tags:hover {
+            background: #e9ecef;
+        }
+        
+        .tag-editing {
+            margin-top: 10px;
+        }
+        
+        .tag-edit-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .btn-save-tags, .btn-cancel-tags {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .btn-save-tags {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-save-tags:hover {
+            background: #218838;
+        }
+        
+        .btn-cancel-tags {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-cancel-tags:hover {
+            background: #5a6268;
+        }
+        
         .note-date {
             color: #999;
             font-size: 12px;
@@ -863,6 +1085,33 @@
                     <h2>My Notes</h2>
                     <button class="btn-new-note" onclick="showNewNoteModal()">+ New Note</button>
                 </div>
+                
+                <!-- Tag Filter Section -->
+                <div class="filter-section" id="tag-filter-section" style="display: none;">
+                    <div class="filter-header">
+                        <span class="filter-title">Filter by Tags</span>
+                        <button class="filter-clear" onclick="clearTagFilter()">Clear All</button>
+                    </div>
+                    <div class="selected-tags" id="selected-tags">
+                        <!-- Selected tags will appear here -->
+                    </div>
+                    <div class="tag-filter-logic">
+                        <label>
+                            <input type="radio" name="tag-logic" value="OR" checked onchange="updateTagFilter()">
+                            Any of these tags (OR)
+                        </label>
+                        <label>
+                            <input type="radio" name="tag-logic" value="AND" onchange="updateTagFilter()">
+                            All of these tags (AND)
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Available Tags -->
+                <div class="tags-container" id="available-tags">
+                    <!-- Available tags will be loaded here -->
+                </div>
+                
                 <div id="notes-list" class="notes-grid">
                     <!-- Notes will be loaded here -->
                 </div>
@@ -876,6 +1125,33 @@
                     <div id="note-content" class="note-full-content">
                         <!-- Note content will be displayed here -->
                     </div>
+                    
+                    <!-- Note Tags Section -->
+                    <div class="note-tags-section">
+                        <div class="tags-header">
+                            <h4>Tags</h4>
+                            <button class="btn-edit-tags" onclick="toggleTagEditing()">✏️ Edit</button>
+                        </div>
+                        <div id="note-current-tags" class="tags-container">
+                            <!-- Current tags will be displayed here -->
+                        </div>
+                        <div id="tag-editing" class="tag-editing" style="display: none;">
+                            <div class="tag-input-container">
+                                <input type="text" id="edit-tags-input" placeholder="Add tags (press Enter or comma to add)">
+                                <div id="edit-tag-autocomplete" class="tag-autocomplete">
+                                    <!-- Autocomplete suggestions will appear here -->
+                                </div>
+                            </div>
+                            <div id="edit-selected-tags" class="tags-container">
+                                <!-- Selected tags will appear here -->
+                            </div>
+                            <div class="tag-edit-actions">
+                                <button class="btn-save-tags" onclick="saveNoteTags()">Save Tags</button>
+                                <button class="btn-cancel-tags" onclick="cancelTagEditing()">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <button class="btn-schedule" onclick="showScheduleModal()">+ Schedule New Post</button>
                 </div>
                 
@@ -989,6 +1265,18 @@
                 <select id="note-account" required>
                     <!-- Accounts will be loaded here -->
                 </select>
+            </div>
+            <div class="form-group">
+                <label for="note-tags-input">Tags</label>
+                <div class="tag-input-container">
+                    <input type="text" id="note-tags-input" placeholder="Add tags (press Enter or comma to add)">
+                    <div id="tag-autocomplete" class="tag-autocomplete">
+                        <!-- Autocomplete suggestions will appear here -->
+                    </div>
+                </div>
+                <div id="note-selected-tags" class="tags-container" style="margin-top: 10px;">
+                    <!-- Selected tags will appear here -->
+                </div>
             </div>
             <div class="modal-actions">
                 <button class="btn-cancel" onclick="hideNewNoteModal()">Cancel</button>
@@ -1116,12 +1404,17 @@
         let currentAccountId = null;
         let selectedAccountId = null;
         let accounts = [];
+        let allTags = [];
+        let selectedTags = [];
+        let currentNoteTags = [];
         
         // Initialize
         document.addEventListener('DOMContentLoaded', async () => {
             await loadAccounts();
+            await loadTags();
             await loadNotes();
             setDefaultDateTime();
+            setupTagInput();
         });
         
         // View Management
@@ -1241,13 +1534,20 @@
                     return;
                 }
                 
-                notesContainer.innerHTML = notes.map(note => `
+                notesContainer.innerHTML = notes.map(note => {
+                    const tags = note.tags ? JSON.parse(note.tags) : [];
+                    return `
                     <div class="note-card" onclick="showNotePosts(${note.id})">
                         <div class="note-actions">
                             <button class="btn-delete-note" onclick="event.stopPropagation(); deleteNote(${note.id})" title="Delete Note">🗑️</button>
                         </div>
                         <div class="note-title">${note.title || 'Untitled Note'}</div>
                         <div class="note-preview">${note.content.substring(0, 150)}${note.content.length > 150 ? '...' : ''}</div>
+                        ${tags.length > 0 ? `
+                            <div class="tags-container">
+                                ${tags.map(tag => `<span class="tag" onclick="event.stopPropagation(); toggleTagFilter('${tag}')">${tag}</span>`).join('')}
+                            </div>
+                        ` : ''}
                         <div class="note-meta">
                             <div class="note-counts">
                                 ${note.published_count > 0 ? `
@@ -1268,9 +1568,166 @@
                             </div>
                         </div>
                     </div>
-                `).join('');
+                `}).join('');
             } catch (error) {
                 console.error('Failed to load notes:', error);
+            }
+        }
+        
+        // Tag Management Functions
+        async function loadTags() {
+            try {
+                console.log('Loading tags...');
+                const response = await fetch('/api/tags');
+                allTags = await response.json();
+                console.log('Loaded tags:', allTags);
+                renderAvailableTags();
+            } catch (error) {
+                console.error('Failed to load tags:', error);
+            }
+        }
+        
+        function renderAvailableTags() {
+            const container = document.getElementById('available-tags');
+            console.log('renderAvailableTags called. Container:', container, 'allTags:', allTags);
+            if (allTags.length === 0) {
+                container.style.display = 'none';
+                console.log('No tags, hiding container');
+                return;
+            }
+            
+            container.style.display = 'flex';
+            const tagsHTML = allTags.map(tag => `
+                <span class="tag ${selectedTags.includes(tag.name) ? 'selected' : ''}" 
+                      onclick="toggleTagFilter('${tag.name}')">
+                    ${tag.name}
+                    <span class="tag-count">(${tag.count})</span>
+                </span>
+            `).join('');
+            console.log('Setting tags HTML:', tagsHTML);
+            container.innerHTML = tagsHTML;
+        }
+        
+        function toggleTagFilter(tagName) {
+            console.log('toggleTagFilter called with:', tagName);
+            const index = selectedTags.indexOf(tagName);
+            if (index > -1) {
+                selectedTags.splice(index, 1);
+                console.log('Removed tag:', tagName, 'selectedTags:', selectedTags);
+            } else {
+                selectedTags.push(tagName);
+                console.log('Added tag:', tagName, 'selectedTags:', selectedTags);
+            }
+            
+            updateTagFilterUI();
+            filterNotesByTags();
+        }
+        
+        function updateTagFilterUI() {
+            // Update filter section visibility
+            const filterSection = document.getElementById('tag-filter-section');
+            if (selectedTags.length > 0) {
+                filterSection.style.display = 'block';
+                
+                // Update selected tags display
+                const selectedTagsContainer = document.getElementById('selected-tags');
+                selectedTagsContainer.innerHTML = selectedTags.map(tag => `
+                    <span class="selected-tag">
+                        ${tag}
+                        <span class="remove" onclick="toggleTagFilter('${tag}')">×</span>
+                    </span>
+                `).join('');
+            } else {
+                filterSection.style.display = 'none';
+            }
+            
+            // Update tag highlights
+            renderAvailableTags();
+        }
+        
+        function clearTagFilter() {
+            selectedTags = [];
+            updateTagFilterUI();
+            loadNotes();
+        }
+        
+        function updateTagFilter() {
+            if (selectedTags.length > 0) {
+                filterNotesByTags();
+            }
+        }
+        
+        async function filterNotesByTags() {
+            console.log('filterNotesByTags called with selectedTags:', selectedTags);
+            if (selectedTags.length === 0) {
+                console.log('No tags selected, loading all notes');
+                await loadNotes();
+                return;
+            }
+            
+            try {
+                const logic = document.querySelector('input[name="tag-logic"]:checked').value;
+                const params = new URLSearchParams({
+                    tags: selectedTags.join(','),
+                    logic: logic
+                });
+                
+                if (selectedAccountId) {
+                    params.append('accountId', selectedAccountId);
+                }
+                
+                const response = await fetch(`/api/notes/by-tags?${params}`);
+                const notes = await response.json();
+                
+                const notesContainer = document.getElementById('notes-list');
+                
+                if (notes.length === 0) {
+                    notesContainer.innerHTML = `
+                        <div class="empty-state" style="grid-column: 1/-1;">
+                            <h3>No notes found with selected tags</h3>
+                            <p>Try adjusting your filter criteria</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                notesContainer.innerHTML = notes.map(note => {
+                    const tags = note.tags ? JSON.parse(note.tags) : [];
+                    return `
+                    <div class="note-card" onclick="showNotePosts(${note.id})">
+                        <div class="note-actions">
+                            <button class="btn-delete-note" onclick="event.stopPropagation(); deleteNote(${note.id})" title="Delete Note">🗑️</button>
+                        </div>
+                        <div class="note-title">${note.title || 'Untitled Note'}</div>
+                        <div class="note-preview">${note.content.substring(0, 150)}${note.content.length > 150 ? '...' : ''}</div>
+                        ${tags.length > 0 ? `
+                            <div class="tags-container">
+                                ${tags.map(tag => `<span class="tag" onclick="event.stopPropagation(); toggleTagFilter('${tag}')">${tag}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        <div class="note-meta">
+                            <div class="note-counts">
+                                ${note.published_count > 0 ? `
+                                    <div class="count">
+                                        <div class="count-circle count-published">${note.published_count}</div>
+                                        <span>Published</span>
+                                    </div>
+                                ` : ''}
+                                ${note.upcoming_count > 0 ? `
+                                    <div class="count">
+                                        <div class="count-circle count-upcoming">${note.upcoming_count}</div>
+                                        <span>Upcoming</span>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <div class="note-date">
+                                ${new Date(note.created_at).toLocaleDateString()}
+                            </div>
+                        </div>
+                    </div>
+                `}).join('');
+            } catch (error) {
+                console.error('Failed to filter notes by tags:', error);
             }
         }
         
@@ -1288,6 +1745,10 @@
                 
                 // Update account for this note
                 currentAccountId = data.note.account_id;
+                
+                // Display current tags
+                currentNoteTags = data.note.tags ? JSON.parse(data.note.tags) : [];
+                displayCurrentNoteTags();
                 
                 // Update aggregate stats
                 updateAggregateStats(data.aggregate_stats);
@@ -1519,6 +1980,9 @@
             document.getElementById('new-note-modal').classList.remove('active');
             document.getElementById('note-title-input').value = '';
             document.getElementById('note-content-input').value = '';
+            document.getElementById('note-tags-input').value = '';
+            noteTagsInput = [];
+            renderNoteTags();
         }
         
         function showScheduleModal() {
@@ -1534,11 +1998,234 @@
             document.getElementById('scheduling-hint').style.display = 'none';
         }
         
+        // Tag Input Handling
+        let noteTagsInput = [];
+        
+        function setupTagInput() {
+            const tagInput = document.getElementById('note-tags-input');
+            const autocomplete = document.getElementById('tag-autocomplete');
+            
+            tagInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    const tag = tagInput.value.trim();
+                    if (tag && !noteTagsInput.includes(tag)) {
+                        noteTagsInput.push(tag);
+                        renderNoteTags();
+                        tagInput.value = '';
+                        autocomplete.classList.remove('show');
+                    }
+                }
+            });
+            
+            tagInput.addEventListener('input', () => {
+                const value = tagInput.value.trim().toLowerCase();
+                if (value) {
+                    const suggestions = allTags
+                        .filter(tag => tag.name.toLowerCase().includes(value) && !noteTagsInput.includes(tag.name))
+                        .slice(0, 5);
+                    
+                    if (suggestions.length > 0) {
+                        autocomplete.innerHTML = suggestions.map(tag => `
+                            <div class="tag-suggestion" onclick="addNoteTag('${tag.name}')">
+                                ${tag.name} <span class="tag-count">(${tag.count})</span>
+                            </div>
+                        `).join('');
+                        autocomplete.classList.add('show');
+                    } else {
+                        autocomplete.classList.remove('show');
+                    }
+                } else {
+                    autocomplete.classList.remove('show');
+                }
+            });
+            
+            // Hide autocomplete when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.tag-input-container')) {
+                    autocomplete.classList.remove('show');
+                }
+            });
+        }
+        
+        function addNoteTag(tag) {
+            if (!noteTagsInput.includes(tag)) {
+                noteTagsInput.push(tag);
+                renderNoteTags();
+                document.getElementById('note-tags-input').value = '';
+                document.getElementById('tag-autocomplete').classList.remove('show');
+            }
+        }
+        
+        function removeNoteTag(tag) {
+            const index = noteTagsInput.indexOf(tag);
+            if (index > -1) {
+                noteTagsInput.splice(index, 1);
+                renderNoteTags();
+            }
+        }
+        
+        function renderNoteTags() {
+            const container = document.getElementById('note-selected-tags');
+            if (noteTagsInput.length === 0) {
+                container.style.display = 'none';
+            } else {
+                container.style.display = 'flex';
+                container.innerHTML = noteTagsInput.map(tag => `
+                    <span class="tag">
+                        ${tag}
+                        <span style="margin-left: 5px; cursor: pointer;" onclick="removeNoteTag('${tag}')">×</span>
+                    </span>
+                `).join('');
+            }
+        }
+        
+        // Note Detail Tag Functions
+        function displayCurrentNoteTags() {
+            const container = document.getElementById('note-current-tags');
+            if (currentNoteTags.length === 0) {
+                container.innerHTML = '<span style="color: #6c757d; font-style: italic;">No tags</span>';
+            } else {
+                container.innerHTML = currentNoteTags.map(tag => `<span class="tag">${tag}</span>`).join('');
+            }
+        }
+        
+        let editingTags = [];
+        
+        function toggleTagEditing() {
+            const editingDiv = document.getElementById('tag-editing');
+            const isVisible = editingDiv.style.display !== 'none';
+            
+            if (!isVisible) {
+                // Start editing
+                editingTags = [...currentNoteTags]; // Copy current tags
+                editingDiv.style.display = 'block';
+                renderEditingTags();
+                setupEditTagInput();
+                document.getElementById('edit-tags-input').focus();
+            } else {
+                // Cancel editing
+                cancelTagEditing();
+            }
+        }
+        
+        function cancelTagEditing() {
+            document.getElementById('tag-editing').style.display = 'none';
+            document.getElementById('edit-tags-input').value = '';
+            document.getElementById('edit-tag-autocomplete').classList.remove('show');
+        }
+        
+        function renderEditingTags() {
+            const container = document.getElementById('edit-selected-tags');
+            if (editingTags.length === 0) {
+                container.style.display = 'none';
+            } else {
+                container.style.display = 'flex';
+                container.innerHTML = editingTags.map(tag => `
+                    <span class="tag">
+                        ${tag}
+                        <span style="margin-left: 5px; cursor: pointer;" onclick="removeEditingTag('${tag}')">×</span>
+                    </span>
+                `).join('');
+            }
+        }
+        
+        function removeEditingTag(tag) {
+            const index = editingTags.indexOf(tag);
+            if (index > -1) {
+                editingTags.splice(index, 1);
+                renderEditingTags();
+            }
+        }
+        
+        function setupEditTagInput() {
+            const tagInput = document.getElementById('edit-tags-input');
+            const autocomplete = document.getElementById('edit-tag-autocomplete');
+            
+            // Remove existing listeners
+            tagInput.onkeydown = null;
+            tagInput.oninput = null;
+            
+            tagInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    const tag = tagInput.value.trim();
+                    if (tag && !editingTags.includes(tag)) {
+                        editingTags.push(tag);
+                        renderEditingTags();
+                        tagInput.value = '';
+                        autocomplete.classList.remove('show');
+                    }
+                }
+            });
+            
+            tagInput.addEventListener('input', () => {
+                const value = tagInput.value.trim().toLowerCase();
+                if (value) {
+                    const suggestions = allTags
+                        .filter(tag => tag.name.toLowerCase().includes(value) && !editingTags.includes(tag.name))
+                        .slice(0, 5);
+                    
+                    if (suggestions.length > 0) {
+                        autocomplete.innerHTML = suggestions.map(tag => `
+                            <div class="tag-suggestion" onclick="addEditingTag('${tag.name}')">
+                                ${tag.name} <span class="tag-count">(${tag.count})</span>
+                            </div>
+                        `).join('');
+                        autocomplete.classList.add('show');
+                    } else {
+                        autocomplete.classList.remove('show');
+                    }
+                } else {
+                    autocomplete.classList.remove('show');
+                }
+            });
+        }
+        
+        function addEditingTag(tag) {
+            if (!editingTags.includes(tag)) {
+                editingTags.push(tag);
+                renderEditingTags();
+                document.getElementById('edit-tags-input').value = '';
+                document.getElementById('edit-tag-autocomplete').classList.remove('show');
+            }
+        }
+        
+        async function saveNoteTags() {
+            if (!currentNoteId) return;
+            
+            try {
+                const response = await fetch(`/api/notes/${currentNoteId}/tags`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tags: editingTags })
+                });
+                
+                if (response.ok) {
+                    currentNoteTags = [...editingTags];
+                    displayCurrentNoteTags();
+                    cancelTagEditing();
+                    
+                    // Refresh tags list to update counts
+                    await loadTags();
+                    
+                    console.log('Tags updated successfully');
+                } else {
+                    const error = await response.json();
+                    alert('Failed to update tags: ' + error.error);
+                }
+            } catch (error) {
+                console.error('Failed to update tags:', error);
+                alert('Failed to update tags');
+            }
+        }
+        
         // Create Note
         async function createNote() {
             const title = document.getElementById('note-title-input').value;
             const content = document.getElementById('note-content-input').value;
             const accountId = selectedAccountId || parseInt(document.getElementById('note-account').value);
+            const tags = noteTagsInput;
             
             if (!content) {
                 alert('Please enter note content');
@@ -1549,12 +2236,14 @@
                 const response = await fetch('/api/notes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, content, accountId })
+                    body: JSON.stringify({ title, content, accountId, tags })
                 });
                 
                 if (response.ok) {
                     hideNewNoteModal();
-                    loadNotes();
+                    noteTagsInput = []; // Reset tags
+                    await loadTags(); // Reload tags to update counts
+                    await loadNotes();
                 } else {
                     const error = await response.json();
                     alert('Failed to create note: ' + error.error);
