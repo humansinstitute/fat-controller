@@ -53,6 +53,7 @@ class PostDatabase {
               created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
               metadata TEXT,
               tags TEXT,
+              pinned BOOLEAN DEFAULT 0,
               FOREIGN KEY (account_id) REFERENCES nostr_accounts(id)
             )
           `, (err) => {
@@ -109,6 +110,7 @@ class PostDatabase {
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_account_id ON notes(account_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_tags ON notes(tags)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_pinned ON notes(pinned)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_note_id ON posts(note_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_event_id ON posts(event_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)');
@@ -157,7 +159,7 @@ class PostDatabase {
         params.push(accountId);
       }
       
-      query += ' GROUP BY n.id ORDER BY n.created_at DESC';
+      query += ' GROUP BY n.id ORDER BY n.pinned DESC, n.created_at DESC';
       
       this.db.all(query, params, (err, rows) => {
         if (err) reject(err);
@@ -801,6 +803,60 @@ class PostDatabase {
         FROM notes n
         LEFT JOIN posts p ON n.id = p.note_id
         WHERE (n.tags IS NULL OR n.tags = '[]')
+      `;
+      
+      const params: any[] = [];
+      if (accountId) {
+        query += ' AND n.account_id = ?';
+        params.push(accountId);
+      }
+      
+      query += ' GROUP BY n.id ORDER BY n.created_at DESC';
+      
+      this.db.all(query, params, (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows as NoteWithCounts[]);
+      });
+    });
+  }
+
+  // Pin/Unpin methods
+  pinNote(noteId: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE notes SET pinned = 1 WHERE id = ?',
+        [noteId],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  unpinNote(noteId: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE notes SET pinned = 0 WHERE id = ?',
+        [noteId],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  getPinnedNotes(accountId?: number): Promise<NoteWithCounts[]> {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT 
+          n.*,
+          COUNT(CASE WHEN p.status = 'published' THEN 1 END) as published_count,
+          COUNT(CASE WHEN p.status = 'pending' THEN 1 END) as upcoming_count
+        FROM notes n
+        LEFT JOIN posts p ON n.id = p.note_id
+        WHERE n.pinned = 1
       `;
       
       const params: any[] = [];

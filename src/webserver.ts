@@ -215,6 +215,41 @@ export class WebServer {
       }
     });
 
+    // Pin/Unpin note endpoints
+    this.app.put('/api/notes/:id/pin', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        await this.db.pinNote(noteId);
+        res.json({ message: 'Note pinned successfully' });
+      } catch (error) {
+        console.error('Error pinning note:', error);
+        res.status(500).json({ error: 'Failed to pin note' });
+      }
+    });
+
+    this.app.put('/api/notes/:id/unpin', async (req, res) => {
+      try {
+        const noteId = parseInt(req.params.id);
+        await this.db.unpinNote(noteId);
+        res.json({ message: 'Note unpinned successfully' });
+      } catch (error) {
+        console.error('Error unpinning note:', error);
+        res.status(500).json({ error: 'Failed to unpin note' });
+      }
+    });
+
+    // Get pinned notes
+    this.app.get('/api/notes/pinned', async (req, res) => {
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        const notes = await this.db.getPinnedNotes(accountId);
+        res.json(notes);
+      } catch (error) {
+        console.error('Error fetching pinned notes:', error);
+        res.status(500).json({ error: 'Failed to fetch pinned notes' });
+      }
+    });
+
     // Tag Management Endpoints
 
     // Get all tags with usage statistics
