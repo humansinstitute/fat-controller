@@ -62,6 +62,16 @@ class PostDatabase {
               return;
             }
             
+            // Add pinned column to existing tables that don't have it
+            this.db.run(`
+              ALTER TABLE notes ADD COLUMN pinned BOOLEAN DEFAULT 0
+            `, (err) => {
+              // Ignore error if column already exists
+              if (err && !err.message.includes('duplicate column name')) {
+                console.error('Migration error adding pinned column:', err);
+              }
+            });
+            
             // Create posts table (replacing scheduled_posts)
             this.db.run(`
               CREATE TABLE IF NOT EXISTS posts (
