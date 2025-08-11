@@ -783,6 +783,13 @@ export class WebServer {
       }
     });
 
+    // Get configuration for frontend
+    this.app.get('/api/config', (req, res) => {
+      res.json({
+        giphyApiKey: process.env.GIPHY_API_KEY || null
+      });
+    });
+
     // Delete account
     this.app.delete('/api/accounts/:id', async (req, res) => {
       try {
