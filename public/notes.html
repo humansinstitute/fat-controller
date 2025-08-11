@@ -1028,6 +1028,140 @@
             background: #218838;
         }
         
+        /* GIF Modal Styles */
+        .content-input-wrapper {
+            position: relative;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        
+        .content-input-wrapper textarea {
+            flex: 1;
+        }
+        
+        .gif-button {
+            background: #6c63ff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+        
+        .gif-button:hover {
+            background: #5a52d5;
+        }
+        
+        .gif-modal-content {
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-close:hover {
+            color: #333;
+        }
+        
+        .gif-search-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .gif-search-container input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .btn-search {
+            background: #2c5aa0;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .btn-search:hover {
+            background: #1a4080;
+        }
+        
+        .gif-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            background: #f9f9f9;
+        }
+        
+        .gif-item {
+            cursor: pointer;
+            border-radius: 6px;
+            overflow: hidden;
+            transition: transform 0.2s;
+            background: white;
+            border: 2px solid transparent;
+        }
+        
+        .gif-item:hover {
+            transform: scale(1.05);
+            border-color: #2c5aa0;
+        }
+        
+        .gif-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        
+        .gif-loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .gif-loading .loader {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2c5aa0;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         .refresh-stats-btn:disabled {
             background: #6c757d;
             cursor: not-allowed;
@@ -1330,7 +1464,12 @@
             </div>
             <div class="form-group">
                 <label for="note-content-input">Content</label>
-                <textarea id="note-content-input" placeholder="Write your note content here..." required></textarea>
+                <div class="content-input-wrapper">
+                    <textarea id="note-content-input" placeholder="Write your note content here..." required></textarea>
+                    <button type="button" class="gif-button" onclick="showGifModal()" title="Insert GIF">
+                        🎬 GIF
+                    </button>
+                </div>
             </div>
             <div class="form-group">
                 <label for="note-account">Account</label>
@@ -1353,6 +1492,30 @@
             <div class="modal-actions">
                 <button class="btn-cancel" onclick="hideNewNoteModal()">Cancel</button>
                 <button class="btn-save" onclick="createNote()">Create Note</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- GIF Search Modal -->
+    <div id="gif-modal" class="modal">
+        <div class="modal-content gif-modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Search & Insert GIF</h3>
+                <button class="modal-close" onclick="hideGifModal()">×</button>
+            </div>
+            
+            <div class="gif-search-container">
+                <input type="text" id="gif-search-input" placeholder="Search for GIFs..." onkeypress="handleGifSearchKeypress(event)">
+                <button class="btn-search" onclick="searchGifs()">Search</button>
+            </div>
+            
+            <div id="gif-results" class="gif-results">
+                <!-- GIF results will appear here -->
+            </div>
+            
+            <div id="gif-loading" class="gif-loading" style="display: none;">
+                <div class="loader"></div>
+                <p>Searching for GIFs...</p>
             </div>
         </div>
     </div>
@@ -2696,6 +2859,140 @@
                 console.error('Error activating account:', error);
                 alert('Failed to activate account');
             }
+        }
+        
+        // GIF Search Functions
+        let currentGifSearchTerm = '';
+        let gifOffset = 0;
+        let GIPHY_API_KEY = null; // Will be loaded from server
+        
+        async function loadGiphyApiKey() {
+            if (GIPHY_API_KEY) return true;
+            
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                GIPHY_API_KEY = config.giphyApiKey;
+                return !!GIPHY_API_KEY;
+            } catch (error) {
+                console.error('Failed to load Giphy API key:', error);
+                return false;
+            }
+        }
+        
+        async function showGifModal() {
+            const hasApiKey = await loadGiphyApiKey();
+            if (!hasApiKey) {
+                alert('GIF search is not configured. Please set GIPHY_API_KEY environment variable.');
+                return;
+            }
+            
+            document.getElementById('gif-modal').classList.add('active');
+            document.getElementById('gif-search-input').focus();
+        }
+        
+        function hideGifModal() {
+            document.getElementById('gif-modal').classList.remove('active');
+            document.getElementById('gif-search-input').value = '';
+            document.getElementById('gif-results').innerHTML = '';
+            currentGifSearchTerm = '';
+            gifOffset = 0;
+        }
+        
+        function handleGifSearchKeypress(event) {
+            if (event.key === 'Enter') {
+                searchGifs();
+            }
+        }
+        
+        async function searchGifs() {
+            const searchTerm = document.getElementById('gif-search-input').value.trim();
+            if (!searchTerm) return;
+            
+            currentGifSearchTerm = searchTerm;
+            document.getElementById('gif-loading').style.display = 'block';
+            document.getElementById('gif-results').innerHTML = '';
+            gifOffset = 0;
+            
+            try {
+                // Using Giphy API v1
+                const limit = 25;
+                const url = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(searchTerm)}&limit=${limit}&offset=${gifOffset}&rating=g`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.data && data.data.length > 0) {
+                    displayGifResults(data.data);
+                } else {
+                    document.getElementById('gif-results').innerHTML = '<p style="text-align: center; color: #666;">No GIFs found. Try a different search term.</p>';
+                }
+            } catch (error) {
+                console.error('Error searching GIFs:', error);
+                document.getElementById('gif-results').innerHTML = '<p style="text-align: center; color: #d32f2f;">Error searching for GIFs. Please try again.</p>';
+            } finally {
+                document.getElementById('gif-loading').style.display = 'none';
+            }
+        }
+        
+        function displayGifResults(gifs) {
+            const resultsContainer = document.getElementById('gif-results');
+            resultsContainer.innerHTML = '';
+            
+            gifs.forEach(gif => {
+                // Use the original GIF URL for insertion
+                const gifUrl = gif.images.original.url;
+                // Use fixed height preview for consistent grid layout
+                const previewUrl = gif.images.fixed_height_small.url;
+                const altText = gif.title || 'GIF';
+                
+                const gifItem = document.createElement('div');
+                gifItem.className = 'gif-item';
+                gifItem.onclick = () => insertGif(gifUrl);
+                gifItem.title = `Click to insert: ${altText}`;
+                
+                const img = document.createElement('img');
+                img.src = previewUrl;
+                img.alt = altText;
+                img.loading = 'lazy';
+                
+                gifItem.appendChild(img);
+                resultsContainer.appendChild(gifItem);
+            });
+        }
+        
+        function insertGif(gifUrl) {
+            const textarea = document.getElementById('note-content-input');
+            const currentContent = textarea.value;
+            const cursorPosition = textarea.selectionStart;
+            
+            // Insert GIF URL at cursor position or at the end
+            const beforeCursor = currentContent.substring(0, cursorPosition);
+            const afterCursor = currentContent.substring(cursorPosition);
+            
+            // Add spacing if needed
+            const prefix = beforeCursor && !beforeCursor.endsWith('\n') && !beforeCursor.endsWith(' ') ? ' ' : '';
+            const suffix = afterCursor && !afterCursor.startsWith('\n') && !afterCursor.startsWith(' ') ? ' ' : '';
+            
+            textarea.value = beforeCursor + prefix + gifUrl + suffix + afterCursor;
+            
+            // Set cursor position after the inserted GIF URL
+            const newPosition = cursorPosition + prefix.length + gifUrl.length;
+            textarea.setSelectionRange(newPosition, newPosition);
+            textarea.focus();
+            
+            // Close the GIF modal
+            hideGifModal();
+            
+            // Show a brief notification
+            const notification = document.createElement('div');
+            notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #4caf50; color: white; padding: 12px 20px; border-radius: 6px; z-index: 10000; animation: slideIn 0.3s ease;';
+            notification.textContent = 'GIF inserted successfully!';
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
         }
 
         // Add account modal handlers
