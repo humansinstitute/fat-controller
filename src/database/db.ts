@@ -702,11 +702,11 @@ class PostDatabase {
 
   getAllTags(): Promise<TagInfo[]> {
     return new Promise((resolve, reject) => {
+      // Don't group by tags - get all notes with tags to count properly
       this.db.all(
-        `SELECT tags, COUNT(*) as note_count, MAX(created_at) as last_used 
+        `SELECT tags, created_at 
          FROM notes 
-         WHERE tags IS NOT NULL AND tags != '[]'
-         GROUP BY tags`,
+         WHERE tags IS NOT NULL AND tags != '[]'`,
         [],
         (err, rows) => {
           if (err) {
@@ -725,14 +725,14 @@ class PostDatabase {
                   const existing = tagMap.get(tag);
                   if (existing) {
                     existing.count += 1;
-                    if (row.last_used > (existing.lastUsed || '')) {
-                      existing.lastUsed = row.last_used;
+                    if (row.created_at > (existing.lastUsed || '')) {
+                      existing.lastUsed = row.created_at;
                     }
                   } else {
                     tagMap.set(tag, {
                       name: tag,
                       count: 1,
-                      lastUsed: row.last_used
+                      lastUsed: row.created_at
                     });
                   }
                 });

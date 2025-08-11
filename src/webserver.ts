@@ -158,9 +158,16 @@ export class WebServer {
           return res.status(400).json({ error: 'scheduledFor and accountId are required' });
         }
         
+        // Validate that the scheduled date is not in the past
+        const scheduledDate = new Date(scheduledFor);
+        const now = new Date();
+        if (scheduledDate < now) {
+          return res.status(400).json({ error: 'Cannot schedule posts in the past' });
+        }
+        
         const postId = await this.db.schedulePostFromNote(
           noteId,
-          new Date(scheduledFor),
+          scheduledDate,
           accountId,
           apiEndpoint,
           publishMethod as 'api' | 'nostrmq' | 'direct'
@@ -306,12 +313,17 @@ export class WebServer {
         const scheduledDate = new Date(scheduledFor);
         console.log(`⏰ Scheduled date parsed: ${scheduledDate.toISOString()}`);
         
+        // Validate that the scheduled date is not in the past
+        const now = new Date();
+        if (scheduledDate < now) {
+          return res.status(400).json({ error: 'Cannot schedule posts in the past' });
+        }
+        
         const method = publishMethod === 'nostrmq' ? 'nostrmq' : (publishMethod === 'api' ? 'api' : 'direct');
         const id = await this.db.addPost(content, scheduledDate, accountId, apiEndpoint, method);
         console.log(`✅ Created single post with ID: ${id} using method: ${method}`);
         
         // Check if this is an immediate post (scheduled within the next 2 minutes)
-        const now = new Date();
         const timeDiff = scheduledDate.getTime() - now.getTime();
         const isImmediate = timeDiff <= 2 * 60 * 1000; // 2 minutes in milliseconds
         
@@ -408,6 +420,12 @@ export class WebServer {
         const start = new Date(startTime);
         console.log(`⏰ Start time parsed: ${start.toISOString()}`);
         
+        // Validate that the start time is not in the past
+        const now = new Date();
+        if (start < now) {
+          return res.status(400).json({ error: 'Cannot schedule posts in the past' });
+        }
+        
         const ids = [];
         const method = publishMethod === 'nostrmq' ? 'nostrmq' : (publishMethod === 'api' ? 'api' : 'direct');
         
@@ -415,6 +433,12 @@ export class WebServer {
           const scheduledFor = new Date(start);
           scheduledFor.setHours(scheduledFor.getHours() + hoursOffset);
           console.log(`📅 Creating post for: ${scheduledFor.toISOString()} (${hoursOffset}h offset)`);
+          
+          // Skip posts that would be scheduled in the past
+          if (scheduledFor < now) {
+            console.log(`⚠️ Skipping post scheduled for ${scheduledFor.toISOString()} (in the past)`);
+            continue;
+          }
           
           const id = await this.db.addPost(content, scheduledFor, accountId, apiEndpoint, method);
           console.log(`✅ Created post with ID: ${id} using method: ${method}`);
@@ -727,20 +751,20 @@ export class WebServer {
             }
           }
           
-          // Fallback: store in database if keychain storage failed
-          if (!storedInKeychain) {
-            console.warn(`⚠️ Storing key in database for account ${id} (less secure)`);
-            await this.db.run(
-              'UPDATE nostr_accounts SET nsec = ? WHERE id = ?',
-              [nsec, id]
-            );
+          // If keychain storage failed, we cannot proceed with direct publishing
+          if (!storedInKeychain && publishMethod === 'direct') {
+            // Delete the account since we can't store the key securely
+            await this.db.run('DELETE FROM nostr_accounts WHERE id = ?', [id]);
+            return res.status(500).json({ 
+              error: 'Failed to store private key securely. Please ensure Keychain access is available.' 
+            });
           }
         }
         
         res.json({ 
           id, 
           message: 'Account added successfully',
-          keyStorageMethod: storedInKeychain ? 'keychain' : (nsec ? 'database' : 'none')
+          keyStorageMethod: storedInKeychain ? 'keychain' : 'none'
         });
       } catch (error) {
         console.error('Error adding account:', error);
