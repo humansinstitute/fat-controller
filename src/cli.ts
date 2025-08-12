@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import PostDatabase from './database/db.js';
+import SigningQueueService from './services/signing-queue.service.js';
 
 const program = new Command();
 
@@ -31,6 +32,18 @@ program
     console.log(`📅 Will be published at: ${scheduledFor.toLocaleString()}`);
     console.log(`🔧 Publishing method: ${publishMethod}`);
     db.close();
+    
+    // Trigger signing queue processing
+    console.log(`🖊️ Triggering signing queue to pre-sign the post...`);
+    const signingQueue = new SigningQueueService();
+    try {
+      await signingQueue.triggerProcessing();
+      console.log(`✅ Signing queue processing completed`);
+    } catch (error) {
+      console.error(`⚠️ Signing queue processing failed: ${error}`);
+    } finally {
+      signingQueue.stop();
+    }
   });
 
 program
@@ -93,6 +106,18 @@ program
     
     console.log(`\n📅 Created ${times.length} scheduled posts over 24 hours using ${publishMethod}`);
     db.close();
+    
+    // Trigger signing queue processing
+    console.log(`🖊️ Triggering signing queue to pre-sign all posts...`);
+    const signingQueue = new SigningQueueService();
+    try {
+      await signingQueue.triggerProcessing();
+      console.log(`✅ Signing queue processing completed`);
+    } catch (error) {
+      console.error(`⚠️ Signing queue processing failed: ${error}`);
+    } finally {
+      signingQueue.stop();
+    }
   });
 
 // Tag commands

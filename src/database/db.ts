@@ -79,13 +79,15 @@ class PostDatabase {
                 note_id INTEGER NOT NULL,
                 scheduled_for DATETIME NOT NULL,
                 published_at DATETIME,
-                status TEXT CHECK(status IN ('pending', 'published', 'failed')) DEFAULT 'pending',
+                status TEXT CHECK(status IN ('pending', 'published', 'failed', 'signing', 'signed')) DEFAULT 'pending',
                 error_message TEXT,
                 event_id TEXT,
                 primal_url TEXT,
                 api_endpoint TEXT,
                 account_id INTEGER,
                 publish_method TEXT CHECK(publish_method IN ('api', 'nostrmq', 'direct')) DEFAULT 'direct',
+                signed_event TEXT,
+                signed_at DATETIME,
                 FOREIGN KEY (note_id) REFERENCES notes(id),
                 FOREIGN KEY (account_id) REFERENCES nostr_accounts(id)
               )
@@ -116,6 +118,29 @@ class PostDatabase {
                   return;
                 }
                 
+                // Migrate existing posts table to add signed_event and signed_at columns
+                this.db.run(`
+                  ALTER TABLE posts ADD COLUMN signed_event TEXT
+                `, (err) => {
+                  // Ignore error if column already exists
+                  if (err && !err.message.includes('duplicate column name')) {
+                    console.error('Migration error adding signed_event column:', err);
+                  }
+                });
+                
+                this.db.run(`
+                  ALTER TABLE posts ADD COLUMN signed_at DATETIME
+                `, (err) => {
+                  // Ignore error if column already exists
+                  if (err && !err.message.includes('duplicate column name')) {
+                    console.error('Migration error adding signed_at column:', err);
+                  }
+                });
+
+                // Note: SQLite doesn't support modifying CHECK constraints in existing tables
+                // The new status values will work in practice but may cause warnings
+                // For new databases, the CREATE TABLE above includes all status values
+                
                 // Create indexes
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_account_id ON notes(account_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_notes_created_at ON notes(created_at)');
@@ -125,6 +150,7 @@ class PostDatabase {
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_event_id ON posts(event_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_scheduled_for ON posts(scheduled_for)');
+                this.db.run('CREATE INDEX IF NOT EXISTS idx_posts_signed_at ON posts(signed_at)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_post_stats_post_id ON post_stats(post_id)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_post_stats_status ON post_stats(status)');
                 this.db.run('CREATE INDEX IF NOT EXISTS idx_post_stats_last_updated ON post_stats(last_updated)');
@@ -380,6 +406,88 @@ class PostDatabase {
         (err) => {
           if (err) reject(err);
           else resolve();
+        }
+      );
+    });
+  }
+
+  markAsSigning(id: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        `UPDATE posts 
+         SET status = 'signing'
+         WHERE id = ?`,
+        [id],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  markAsSigned(id: number, signedEvent: any): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        `UPDATE posts 
+         SET status = 'signed', signed_event = ?, signed_at = datetime('now')
+         WHERE id = ?`,
+        [JSON.stringify(signedEvent), id],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  getPostsReadyForSigning(): Promise<(Post & { content: string })[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT p.*, n.content 
+         FROM posts p
+         JOIN notes n ON p.note_id = n.id
+         WHERE p.status = 'pending' AND p.signed_event IS NULL
+         ORDER BY p.scheduled_for ASC`,
+        [],
+        (err, rows) => {
+          if (err) {
+            console.error('❌ Database getPostsReadyForSigning error:', err);
+            reject(err);
+          } else {
+            const posts = (rows as any[]).map(row => ({
+              ...row,
+              content: row.content
+            }));
+            console.log(`🔍 getPostsReadyForSigning found ${posts.length} posts ready to sign`);
+            resolve(posts);
+          }
+        }
+      );
+    });
+  }
+
+  getPendingSignedPosts(): Promise<(Post & { content: string })[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT p.*, n.content 
+         FROM posts p
+         JOIN notes n ON p.note_id = n.id
+         WHERE p.status = 'signed' AND datetime(p.scheduled_for) <= datetime('now')
+         ORDER BY p.scheduled_for ASC`,
+        [],
+        (err, rows) => {
+          if (err) {
+            console.error('❌ Database getPendingSignedPosts error:', err);
+            reject(err);
+          } else {
+            const posts = (rows as any[]).map(row => ({
+              ...row,
+              content: row.content
+            }));
+            console.log(`🔍 getPendingSignedPosts found ${posts.length} pre-signed posts ready to publish`);
+            resolve(posts);
+          }
         }
       );
     });
