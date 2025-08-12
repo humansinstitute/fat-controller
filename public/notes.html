@@ -1252,8 +1252,10 @@
         .media-item-preview {
             width: 100%;
             height: 750px;
+            min-height: 750px;
             object-fit: cover;
             display: block;
+            background-color: #f0f0f0;
         }
         
         .media-item-info {
@@ -3378,15 +3380,15 @@
                 if (isImage || isVideo) {
                     if (isVideo) {
                         previewHtml = `
-                            <video class="media-item-preview" muted>
+                            <video class="media-item-preview" muted preload="metadata">
                                 <source src="${file.url}" type="${fileType}">
                             </video>`;
                     } else {
-                        previewHtml = `<img class="media-item-preview" src="${file.url}" alt="${file.name}" loading="lazy">`;
+                        previewHtml = `<img class="media-item-preview" src="${file.url}" alt="${file.name}" loading="eager" onload="this.style.opacity='1'" style="opacity: 0; transition: opacity 0.3s;">`;
                     }
                 } else {
                     previewHtml = `
-                        <div class="media-item-preview" style="display: flex; align-items: center; justify-content: center; background: #f0f0f0;">
+                        <div class="media-item-preview" style="display: flex; align-items: center; justify-content: center; background: #f0f0f0; min-height: 750px;">
                             <span style="font-size: 48px;">📄</span>
                         </div>`;
                 }
@@ -3411,6 +3413,13 @@
                 
                 resultsContainer.appendChild(mediaItem);
             });
+            
+            // Force layout recalculation to ensure proper image sizing
+            setTimeout(() => {
+                resultsContainer.style.display = 'none';
+                resultsContainer.offsetHeight; // Force reflow
+                resultsContainer.style.display = 'grid';
+            }, 100);
         }
         
         function insertMedia(mediaUrl) {
