@@ -793,34 +793,51 @@ export class WebServer {
 
     // Get user's media from Satellite CDN
     this.app.get('/api/satellite/media', async (req, res) => {
+      console.log('🛰️ Satellite media request received for accountId:', req.query.accountId);
+      
       try {
         const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
         
         if (!accountId) {
+          console.log('❌ No account ID provided');
           return res.status(400).json({ error: 'Account ID is required' });
         }
 
+        console.log('🔍 Looking up account:', accountId);
         // Get the account
         const account = await this.db.getAccount(accountId);
         if (!account) {
+          console.log('❌ Account not found:', accountId);
           return res.status(404).json({ error: 'Account not found' });
         }
+
+        console.log('✅ Account found:', account.name, 'Method:', account.publish_method);
 
         // Get the nsec from keychain or database
         let nsec: string | undefined = account.nsec || undefined;
         if (account.keychain_ref) {
+          console.log('🔐 Attempting to get nsec from keychain for account:', accountId);
           const keychainNsec = await getNsecFromKeychain(accountId);
           if (keychainNsec) {
             nsec = keychainNsec;
+            console.log('✅ Retrieved nsec from keychain');
+          } else {
+            console.log('⚠️ Failed to retrieve nsec from keychain');
           }
+        } else if (nsec) {
+          console.log('✅ Using nsec from database');
         }
 
         if (!nsec) {
+          console.log('❌ No private key available for account:', accountId);
           return res.status(400).json({ error: 'No private key available for this account' });
         }
 
+        console.log('🔑 Decoding private key...');
         // Decode the private key
         const { data: privkey } = nip19.decode(nsec);
+        const pubkey = getPublicKey(privkey as Uint8Array);
+        console.log('✅ Public key derived:', pubkey.substring(0, 16) + '...');
         
         // Create the authentication event
         const authEvent = {
@@ -828,27 +845,51 @@ export class WebServer {
           created_at: Math.floor(Date.now() / 1000),
           tags: [],
           content: 'Authenticate User',
-          pubkey: getPublicKey(privkey as Uint8Array)
+          pubkey: pubkey
         };
+
+        console.log('📝 Creating auth event:', { 
+          kind: authEvent.kind, 
+          content: authEvent.content, 
+          pubkey: authEvent.pubkey.substring(0, 16) + '...',
+          created_at: authEvent.created_at
+        });
 
         // Sign the event
         const signedEvent = finalizeEvent(authEvent, privkey as Uint8Array);
+        console.log('✅ Event signed with ID:', signedEvent.id.substring(0, 16) + '...');
         
         // Encode the event for the API call
         const authParam = encodeURIComponent(JSON.stringify(signedEvent));
+        console.log('📦 Auth param length:', authParam.length);
         
         // Call the Satellite API
         const satelliteApiUrl = process.env.SATELLITE_CDN_API || 'https://api.satellite.earth';
-        const response = await fetch(`${satelliteApiUrl}/v1/media/account?auth=${authParam}`);
+        const fullUrl = `${satelliteApiUrl}/v1/media/account?auth=${authParam}`;
+        console.log('🌐 Calling Satellite API:', satelliteApiUrl);
+        
+        const response = await fetch(fullUrl);
+        console.log('📡 Satellite API response:', response.status, response.statusText);
         
         if (!response.ok) {
+          const errorText = await response.text();
+          console.log('❌ Satellite API error response:', errorText);
+          
           if (response.status === 403) {
-            return res.status(403).json({ error: 'Authentication failed with Satellite CDN' });
+            return res.status(403).json({ 
+              error: 'Authentication failed with Satellite CDN',
+              details: errorText
+            });
           }
-          throw new Error(`Satellite API returned ${response.status}`);
+          throw new Error(`Satellite API returned ${response.status}: ${errorText}`);
         }
 
         const accountData = await response.json() as any;
+        console.log('✅ Satellite API response data:', {
+          filesCount: accountData.files?.length || 0,
+          storageTotal: accountData.storageTotal,
+          creditTotal: accountData.creditTotal
+        });
         
         // Return the files array with relevant metadata
         const files = accountData.files || [];
@@ -862,6 +903,8 @@ export class WebServer {
           label: file.label
         }));
 
+        console.log('📋 Returning', formattedFiles.length, 'formatted files');
+
         res.json({
           files: formattedFiles,
           storageTotal: accountData.storageTotal,
@@ -870,8 +913,12 @@ export class WebServer {
         });
         
       } catch (error) {
-        console.error('Error fetching Satellite media:', error);
-        res.status(500).json({ error: 'Failed to fetch media from Satellite CDN' });
+        console.error('💥 Error fetching Satellite media:', error);
+        console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+        res.status(500).json({ 
+          error: 'Failed to fetch media from Satellite CDN',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
     });
 
