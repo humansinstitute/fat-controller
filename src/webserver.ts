@@ -3,10 +3,10 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { nip19 } from 'nostr-tools';
+import { nip19, getPublicKey, finalizeEvent } from 'nostr-tools';
 import PostDatabase from './database/db.js';
 import { PostScheduler } from './scheduler.js';
-import { storeNsecInKeychain, deleteNsecFromKeychain, generateKeychainReference, isKeychainAvailable } from './keychain.service.js';
+import { storeNsecInKeychain, deleteNsecFromKeychain, generateKeychainReference, isKeychainAvailable, getNsecFromKeychain } from './keychain.service.js';
 import StatsSchedulerService from './services/stats-scheduler.service.js';
 import StatsCollectionService from './services/stats-collection.service.js';
 import BackgroundJobService from './services/background-jobs.service.js';
@@ -786,8 +786,93 @@ export class WebServer {
     // Get configuration for frontend
     this.app.get('/api/config', (req, res) => {
       res.json({
-        giphyApiKey: process.env.GIPHY_API_KEY || null
+        giphyApiKey: process.env.GIPHY_API_KEY || null,
+        satelliteApiUrl: process.env.SATELLITE_CDN_API || 'https://api.satellite.earth'
       });
+    });
+
+    // Get user's media from Satellite CDN
+    this.app.get('/api/satellite/media', async (req, res) => {
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        
+        if (!accountId) {
+          return res.status(400).json({ error: 'Account ID is required' });
+        }
+
+        // Get the account
+        const account = await this.db.getAccount(accountId);
+        if (!account) {
+          return res.status(404).json({ error: 'Account not found' });
+        }
+
+        // Get the nsec from keychain or database
+        let nsec: string | undefined = account.nsec || undefined;
+        if (account.keychain_ref) {
+          const keychainNsec = await getNsecFromKeychain(accountId);
+          if (keychainNsec) {
+            nsec = keychainNsec;
+          }
+        }
+
+        if (!nsec) {
+          return res.status(400).json({ error: 'No private key available for this account' });
+        }
+
+        // Decode the private key
+        const { data: privkey } = nip19.decode(nsec);
+        
+        // Create the authentication event
+        const authEvent = {
+          kind: 22242,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: 'Authenticate User',
+          pubkey: getPublicKey(privkey as Uint8Array)
+        };
+
+        // Sign the event
+        const signedEvent = finalizeEvent(authEvent, privkey as Uint8Array);
+        
+        // Encode the event for the API call
+        const authParam = encodeURIComponent(JSON.stringify(signedEvent));
+        
+        // Call the Satellite API
+        const satelliteApiUrl = process.env.SATELLITE_CDN_API || 'https://api.satellite.earth';
+        const response = await fetch(`${satelliteApiUrl}/v1/media/account?auth=${authParam}`);
+        
+        if (!response.ok) {
+          if (response.status === 403) {
+            return res.status(403).json({ error: 'Authentication failed with Satellite CDN' });
+          }
+          throw new Error(`Satellite API returned ${response.status}`);
+        }
+
+        const accountData = await response.json() as any;
+        
+        // Return the files array with relevant metadata
+        const files = accountData.files || [];
+        const formattedFiles = files.map((file: any) => ({
+          url: file.url,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          created: file.created,
+          sha256: file.sha256,
+          label: file.label
+        }));
+
+        res.json({
+          files: formattedFiles,
+          storageTotal: accountData.storageTotal,
+          creditTotal: accountData.creditTotal,
+          paidThrough: accountData.paidThrough
+        });
+        
+      } catch (error) {
+        console.error('Error fetching Satellite media:', error);
+        res.status(500).json({ error: 'Failed to fetch media from Satellite CDN' });
+      }
     });
 
     // Delete account
