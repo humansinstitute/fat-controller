@@ -25,13 +25,15 @@ export interface Post {
   note_id: number;
   scheduled_for: string;
   published_at?: string;
-  status: 'pending' | 'published' | 'failed';
+  status: 'pending' | 'published' | 'failed' | 'signing' | 'signed';
   error_message?: string;
   event_id?: string;
   primal_url?: string;
   api_endpoint?: string;
   account_id?: number;
   publish_method?: 'api' | 'nostrmq' | 'direct';
+  signed_event?: string; // JSON string of pre-signed Nostr event
+  signed_at?: string; // When the event was signed
 }
 
 // Legacy interface for backward compatibility during transition

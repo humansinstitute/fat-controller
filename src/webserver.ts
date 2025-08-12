@@ -10,6 +10,7 @@ import { storeNsecInKeychain, deleteNsecFromKeychain, generateKeychainReference,
 import StatsSchedulerService from './services/stats-scheduler.service.js';
 import StatsCollectionService from './services/stats-collection.service.js';
 import BackgroundJobService from './services/background-jobs.service.js';
+import SigningQueueService from './services/signing-queue.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -20,13 +21,15 @@ export class WebServer {
   private port: number;
   private scheduler: PostScheduler | null = null;
   private statsScheduler: StatsSchedulerService | null = null;
+  private signingQueue: SigningQueueService | null = null;
 
-  constructor(port: number = 3001, scheduler?: PostScheduler, statsScheduler?: StatsSchedulerService) {
+  constructor(port: number = 3001, scheduler?: PostScheduler, statsScheduler?: StatsSchedulerService, signingQueue?: SigningQueueService) {
     this.app = express();
     this.db = new PostDatabase();
     this.port = port;
     this.scheduler = scheduler || null;
     this.statsScheduler = statsScheduler || null;
+    this.signingQueue = signingQueue || null;
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -35,6 +38,17 @@ export class WebServer {
     this.app.use(cors());
     this.app.use(express.json());
     this.app.use(express.static(path.join(__dirname, '../public')));
+  }
+
+  /**
+   * Trigger signing queue processing (fire and forget)
+   */
+  private triggerSigningQueue(): void {
+    if (this.signingQueue) {
+      this.signingQueue.triggerProcessing().catch(error => {
+        console.error('⚠️ Failed to trigger signing queue:', error);
+      });
+    }
   }
 
   private setupRoutes() {
@@ -134,6 +148,9 @@ export class WebServer {
             accountId
           );
           
+          // Trigger signing queue processing
+          this.triggerSigningQueue();
+          
           res.json({ 
             noteId, 
             postId,
@@ -172,6 +189,9 @@ export class WebServer {
           apiEndpoint,
           publishMethod as 'api' | 'nostrmq' | 'direct'
         );
+        
+        // Trigger signing queue processing if available
+        this.triggerSigningQueue();
         
         res.json({ postId, message: 'Post scheduled successfully' });
       } catch (error) {
@@ -345,6 +365,11 @@ export class WebServer {
           }
         }
         
+        // Trigger signing queue processing if not published immediately
+        if (!isImmediate) {
+          this.triggerSigningQueue();
+        }
+        
         res.json({ 
           id, 
           message: isImmediate ? 'Post created and published immediately' : 'Post scheduled successfully',
@@ -377,6 +402,9 @@ export class WebServer {
           const id = await this.db.addPost(content, scheduledFor, undefined, apiEndpoint, method);
           ids.push(id);
         }
+        
+        // Trigger signing queue processing for batch posts
+        this.triggerSigningQueue();
         
         res.json({ 
           ids,
@@ -450,6 +478,9 @@ export class WebServer {
         }
         
         console.log(`🎉 Successfully created ${ids.length} batch posts`);
+        
+        // Trigger signing queue processing for custom batch posts
+        this.triggerSigningQueue();
         
         res.json({ 
           ids,
