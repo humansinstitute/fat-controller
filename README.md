@@ -4,6 +4,8 @@
 
 A comprehensive Nostr post scheduler that automatically publishes posts to the Nostr network. Supports multiple publishing methods (API, NostrMQ, direct relay publishing), secure key management via macOS Keychain, and provides both CLI and modern web interfaces.
 
+If this is useful send sats! pw21@walletofsatoshi.com
+
 ## Features
 
 ### 🚀 Core Functionality
