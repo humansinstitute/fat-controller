@@ -1448,6 +1448,7 @@
         <nav class="nav-tabs">
             <button class="nav-tab active" onclick="switchView('notes')">Notes</button>
             <button class="nav-tab" onclick="switchView('schedule')">Quick Schedule</button>
+            <button class="nav-tab" onclick="switchView('media')">Media</button>
             <button class="nav-tab" onclick="switchView('accounts')">Accounts</button>
         </nav>
         
@@ -1618,6 +1619,35 @@
                 </div>
             </div>
             
+            <!-- Media View -->
+            <div id="media-view" class="view">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                    <h2>Media Manager</h2>
+                    <button type="button" id="exportMediaBtn" class="btn-new-note">📥 Export CSV</button>
+                </div>
+                
+                <div class="media-filter-container">
+                    <button class="media-filter-btn active" onclick="filterTabMedia('all')">All</button>
+                    <button class="media-filter-btn" onclick="filterTabMedia('image')">Images</button>
+                    <button class="media-filter-btn" onclick="filterTabMedia('video')">Videos</button>
+                    <input type="text" id="tab-media-search-input" placeholder="Search by filename..." onkeyup="searchTabMedia()">
+                </div>
+                
+                <div id="tab-media-results" class="media-results">
+                    <!-- Media results will appear here -->
+                </div>
+                
+                <div id="tab-media-loading" class="media-loading" style="display: none;">
+                    <div class="loader"></div>
+                    <p>Loading your media...</p>
+                </div>
+                
+                <div id="tab-media-empty" class="media-empty" style="display: none;">
+                    <p>No media found in your Satellite CDN storage.</p>
+                    <p style="font-size: 14px; color: #666; margin-top: 10px;">Upload files at <a href="https://satellite.earth" target="_blank">satellite.earth</a></p>
+                </div>
+            </div>
+            
             <!-- Accounts View -->
             <div id="accounts-view" class="view">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
@@ -1708,7 +1738,10 @@
         <div class="modal-content media-modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Browse Your Media</h3>
-                <button class="modal-close" onclick="hideMediaModal()">×</button>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button class="btn-new-note" onclick="exportMediaToCSV()" style="font-size: 14px; padding: 6px 12px;">📥 Export CSV</button>
+                    <button class="modal-close" onclick="hideMediaModal()">×</button>
+                </div>
             </div>
             
             <div class="media-filter-container">
@@ -1880,6 +1913,8 @@
                 loadAccountsList();
             } else if (viewName === 'schedule') {
                 initializeQuickSchedule();
+            } else if (viewName === 'media') {
+                loadTabMediaFiles();
             }
         }
         
@@ -3464,6 +3499,265 @@
                 notification.remove();
             }, 3000);
         }
+
+        // Media Tab Functions
+        let tabMediaFiles = [];
+        let currentTabMediaFilter = 'all';
+
+        async function loadTabMediaFiles() {
+            console.log('🛰️ Loading media files for tab view, account:', selectedAccountId);
+            document.getElementById('tab-media-loading').style.display = 'block';
+            document.getElementById('tab-media-results').innerHTML = '';
+            document.getElementById('tab-media-empty').style.display = 'none';
+            
+            try {
+                const url = `/api/satellite/media?accountId=${selectedAccountId}`;
+                console.log('📡 Fetching from:', url);
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorData;
+                    try {
+                        errorData = JSON.parse(errorText);
+                    } catch {
+                        errorData = { error: errorText };
+                    }
+                    
+                    if (response.status === 403) {
+                        throw new Error(`Authentication failed: ${errorData.details || errorData.error || 'Please check your account settings'}`);
+                    }
+                    throw new Error(`Failed to load media (${response.status}): ${errorData.details || errorData.error || errorText}`);
+                }
+                
+                const data = await response.json();
+                
+                tabMediaFiles = data.files || [];
+                
+                if (tabMediaFiles.length === 0) {
+                    console.log('📁 No media files found');
+                    document.getElementById('tab-media-empty').style.display = 'block';
+                } else {
+                    console.log('📋 Displaying', tabMediaFiles.length, 'media files');
+                    displayTabMediaResults(tabMediaFiles);
+                }
+            } catch (error) {
+                console.error('💥 Error loading media:', error);
+                document.getElementById('tab-media-results').innerHTML = 
+                    `<p style="text-align: center; color: #d32f2f; padding: 20px;">
+                        Error loading media: ${error.message}
+                    </p>`;
+            } finally {
+                document.getElementById('tab-media-loading').style.display = 'none';
+            }
+        }
+
+        function filterTabMedia(type) {
+            currentTabMediaFilter = type;
+            
+            // Update active button
+            document.querySelectorAll('#media-view .media-filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if ((type === 'all' && btn.textContent === 'All') ||
+                    (type === 'image' && btn.textContent === 'Images') ||
+                    (type === 'video' && btn.textContent === 'Videos')) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            let filteredFiles = tabMediaFiles;
+            
+            if (type !== 'all') {
+                filteredFiles = tabMediaFiles.filter(file => {
+                    const fileType = file.type || '';
+                    if (type === 'image') {
+                        return fileType.startsWith('image/');
+                    } else if (type === 'video') {
+                        return fileType.startsWith('video/');
+                    }
+                    return true;
+                });
+            }
+            
+            // Apply search filter if there's a search term
+            const searchTerm = document.getElementById('tab-media-search-input').value.toLowerCase();
+            if (searchTerm) {
+                filteredFiles = filteredFiles.filter(file => 
+                    file.name.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            displayTabMediaResults(filteredFiles);
+        }
+
+        function searchTabMedia() {
+            const searchTerm = document.getElementById('tab-media-search-input').value.toLowerCase();
+            
+            let filteredFiles = tabMediaFiles;
+            
+            // Apply current filter
+            if (currentTabMediaFilter !== 'all') {
+                filteredFiles = tabMediaFiles.filter(file => {
+                    const fileType = file.type || '';
+                    if (currentTabMediaFilter === 'image') {
+                        return fileType.startsWith('image/');
+                    } else if (currentTabMediaFilter === 'video') {
+                        return fileType.startsWith('video/');
+                    }
+                    return true;
+                });
+            }
+            
+            // Apply search filter
+            if (searchTerm) {
+                filteredFiles = filteredFiles.filter(file => 
+                    file.name.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            displayTabMediaResults(filteredFiles);
+        }
+
+        function displayTabMediaResults(files) {
+            const resultsContainer = document.getElementById('tab-media-results');
+            
+            if (files.length === 0) {
+                resultsContainer.innerHTML = 
+                    '<div style="text-align: center; color: #666; padding: 40px;">No media files match your current filter.</div>';
+                return;
+            }
+            
+            resultsContainer.innerHTML = '';
+            
+            files.forEach(file => {
+                const mediaItem = document.createElement('div');
+                mediaItem.className = 'media-item';
+                mediaItem.title = `${file.name} - ${file.url}`;
+                
+                // Determine file type
+                const fileType = file.type || '';
+                const isImage = fileType.startsWith('image/');
+                const isVideo = fileType.startsWith('video/');
+                const typeLabel = isImage ? 'image' : isVideo ? 'video' : 'file';
+                
+                let previewHtml;
+                if (isImage || isVideo) {
+                    if (isVideo) {
+                        previewHtml = `
+                            <div class="media-item-preview-container">
+                                <video class="media-item-preview" muted preload="metadata">
+                                    <source src="${file.url}" type="${fileType}">
+                                </video>
+                            </div>`;
+                    } else {
+                        previewHtml = `
+                            <div class="media-item-preview-container">
+                                <img class="media-item-preview" src="${file.url}" alt="${file.name}" loading="eager">
+                            </div>`;
+                    }
+                } else {
+                    previewHtml = `
+                        <div class="media-item-preview-container">
+                            <span style="font-size: 48px;">📄</span>
+                        </div>`;
+                }
+                
+                const formatSize = (bytes) => {
+                    if (bytes === 0) return '0 B';
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+                    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+                };
+                
+                mediaItem.innerHTML = `
+                    ${previewHtml}
+                    <div class="media-item-info">
+                        <div class="media-item-name">${file.name}</div>
+                        <div class="media-item-meta">
+                            <span class="media-item-type ${typeLabel}">${typeLabel}</span>
+                            <span>${formatSize(file.size)}</span>
+                        </div>
+                    </div>
+                `;
+                
+                resultsContainer.appendChild(mediaItem);
+            });
+        }
+
+        function exportMediaToCSV() {
+            // Get the current filtered media files
+            let filesToExport = [];
+            if (window.location.hash === '#media' || document.getElementById('media-view').classList.contains('active')) {
+                // Use tab media files if we're in the media tab
+                filesToExport = tabMediaFiles;
+            } else {
+                // Use modal media files if we're in the modal
+                filesToExport = allMediaFiles;
+            }
+            
+            if (!filesToExport || filesToExport.length === 0) {
+                alert('No media files to export.');
+                return;
+            }
+            
+            // CSV headers
+            const headers = ['Title', 'URL', 'Type', 'Size (bytes)', 'Size (formatted)', 'Upload Date'];
+            
+            // Convert files to CSV rows
+            const csvRows = [headers];
+            
+            filesToExport.forEach(file => {
+                const formatSize = (bytes) => {
+                    if (bytes === 0) return '0 B';
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+                    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+                };
+                
+                const row = [
+                    `"${file.name.replace(/"/g, '""')}"`, // Escape quotes in CSV
+                    file.url,
+                    file.type || 'unknown',
+                    file.size || 0,
+                    formatSize(file.size || 0),
+                    file.uploadDate || file.created_at || 'unknown'
+                ];
+                csvRows.push(row);
+            });
+            
+            // Convert to CSV string
+            const csvContent = csvRows.map(row => row.join(',')).join('\n');
+            
+            // Create and download the file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `satellite-media-export-${new Date().toISOString().split('T')[0]}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Show success notification
+                const notification = document.createElement('div');
+                notification.style.cssText = 'position: fixed; top: 20px; right: 20px; background: #28a745; color: white; padding: 12px 20px; border-radius: 6px; z-index: 10000;';
+                notification.textContent = `CSV exported successfully! (${filesToExport.length} files)`;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.remove();
+                }, 3000);
+            } else {
+                alert('CSV export is not supported in this browser.');
+            }
+        }
+
+        // Add export button click handler for media tab
+        document.getElementById('exportMediaBtn').addEventListener('click', exportMediaToCSV);
 
         // Add account modal handlers
         document.getElementById('addAccountBtn').addEventListener('click', () => {
