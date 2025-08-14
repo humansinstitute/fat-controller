@@ -4527,6 +4527,12 @@
                 if (verifyResult.paid && verifyResult.verified) {
                     console.log('💰 Payment confirmed! Updating UI...');
                     
+                    // Check if there's a warning about credit not being applied yet
+                    if (verifyResult.warning) {
+                        console.log('⚠️ Warning:', verifyResult.warning);
+                        showNotification(verifyResult.warning, 'warning');
+                    }
+                    
                     // Update storage status in the UI if provided
                     if (verifyResult.accountStatus) {
                         document.getElementById('credit-total').textContent = verifyResult.accountStatus.creditTotal || '0';
@@ -4541,7 +4547,7 @@
                         await refreshStorageStatus();
                     }
                     
-                    showStoragePaymentResult(true);
+                    showStoragePaymentResult(!verifyResult.warning);
                 } else {
                     const message = verifyResult.message || 'Payment not yet confirmed. Please wait a moment and try again.';
                     showNotification(message, 'warning');

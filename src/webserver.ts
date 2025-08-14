@@ -1335,6 +1335,47 @@ export class WebServer {
         if (isPaid) {
           console.log('✅ Payment confirmed! Refreshing account status...');
           
+          // First get the initial credit amount before checking for updates
+          let initialCreditTotal = 0;
+          try {
+            const account = await this.db.getAccount(accountId);
+            if (account && account.nsec) {
+              let nsec: string | undefined = account.nsec || undefined;
+              if (account.keychain_ref) {
+                const keychainNsec = await getNsecFromKeychain(accountId);
+                if (keychainNsec) {
+                  nsec = keychainNsec;
+                }
+              }
+              if (nsec) {
+                const { data: privkey } = nip19.decode(nsec);
+                const pubkey = getPublicKey(privkey as Uint8Array);
+                
+                const authEvent = {
+                  kind: 22242,
+                  created_at: Math.floor(Date.now() / 1000),
+                  tags: [],
+                  content: 'Authenticate User',
+                  pubkey: pubkey
+                };
+                const signedEvent = finalizeEvent(authEvent, privkey as Uint8Array);
+                
+                const authParam = encodeURIComponent(JSON.stringify(signedEvent));
+                const satelliteApiUrl = process.env.SATELLITE_CDN_API || 'https://api.satellite.earth';
+                const statusUrl = `${satelliteApiUrl}/v1/media/account?auth=${authParam}`;
+                
+                const statusResponse = await fetch(statusUrl);
+                if (statusResponse.ok) {
+                  const initialData = await statusResponse.json() as any;
+                  initialCreditTotal = initialData.creditTotal || 0;
+                  console.log('📊 Initial credit amount before payment:', initialCreditTotal);
+                }
+              }
+            }
+          } catch (error) {
+            console.log('⚠️ Could not get initial credit amount:', error);
+          }
+          
           // Wait longer for Satellite to detect and process the payment
           console.log('⏳ Waiting 10 seconds for Satellite to detect payment...');
           await new Promise(resolve => setTimeout(resolve, 10000));
@@ -1344,7 +1385,7 @@ export class WebServer {
           let retryCount = 0;
           const maxRetries = 3;
           
-          while (retryCount < maxRetries && (!accountData || accountData.creditTotal === 0)) {
+          while (retryCount < maxRetries && (!accountData || accountData.creditTotal <= initialCreditTotal)) {
             try {
               const account = await this.db.getAccount(accountId);
               if (account) {
@@ -1384,8 +1425,8 @@ export class WebServer {
                       timeRemaining: accountData.timeRemaining
                     });
                     
-                    if (accountData.creditTotal > 0) {
-                      console.log('✅ Credit detected! Payment successfully processed by Satellite');
+                    if (accountData.creditTotal > initialCreditTotal) {
+                      console.log(`✅ Credit increased from ${initialCreditTotal} to ${accountData.creditTotal}! Payment successfully processed by Satellite`);
                       console.log('🔍 Account auth details - pubkey:', pubkey.substring(0, 16) + '...');
                       
                       return res.json({
@@ -1395,11 +1436,13 @@ export class WebServer {
                           creditTotal: accountData.creditTotal,
                           storageTotal: accountData.storageTotal,
                           usageTotal: accountData.usageTotal,
+                          paidThrough: accountData.paidThrough,
+                          timeRemaining: accountData.timeRemaining,
                           files: accountData.files?.length || 0
                         }
                       });
                     } else if (retryCount < maxRetries - 1) {
-                      console.log(`⏳ Credit not yet detected, waiting 15 seconds before retry ${retryCount + 2}...`);
+                      console.log(`⏳ Credit not yet increased (still ${accountData.creditTotal}), waiting 15 seconds before retry ${retryCount + 2}...`);
                       await new Promise(resolve => setTimeout(resolve, 15000));
                     }
                   }
@@ -1412,7 +1455,25 @@ export class WebServer {
             retryCount++;
           }
           
-          return res.json({ paid: true, verified: true });
+          // Payment verified but credit not yet detected after retries
+          if (accountData) {
+            console.log(`⚠️ Payment verified but credit not increased after ${maxRetries} attempts. Current credit: ${accountData.creditTotal}, Expected: >${initialCreditTotal}`);
+            return res.json({ 
+              paid: true, 
+              verified: true,
+              warning: 'Payment confirmed but credit not yet applied. Please check again in a few minutes.',
+              accountStatus: {
+                creditTotal: accountData.creditTotal,
+                storageTotal: accountData.storageTotal,
+                usageTotal: accountData.usageTotal,
+                paidThrough: accountData.paidThrough,
+                timeRemaining: accountData.timeRemaining,
+                files: accountData.files?.length || 0
+              }
+            });
+          } else {
+            return res.json({ paid: true, verified: true });
+          }
         } else {
           console.log('⏳ Payment not yet confirmed');
           return res.json({ 
