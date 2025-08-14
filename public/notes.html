@@ -1841,6 +1841,7 @@
                     <button class="media-filter-btn active" onclick="filterTabMedia('all')">All</button>
                     <button class="media-filter-btn" onclick="filterTabMedia('image')">Images</button>
                     <button class="media-filter-btn" onclick="filterTabMedia('video')">Videos</button>
+                    <button class="media-filter-btn" onclick="filterTabMedia('audio')">Audio</button>
                     <input type="text" id="tab-media-search-input" placeholder="Search by filename..." onkeyup="searchTabMedia()">
                 </div>
                 
@@ -1959,6 +1960,7 @@
                 <button class="media-filter-btn active" onclick="filterMedia('all')">All</button>
                 <button class="media-filter-btn" onclick="filterMedia('image')">Images</button>
                 <button class="media-filter-btn" onclick="filterMedia('video')">Videos</button>
+                <button class="media-filter-btn" onclick="filterMedia('audio')">Audio</button>
                 <input type="text" id="media-search-input" placeholder="Search by filename..." onkeyup="searchMedia()">
             </div>
             
@@ -3577,7 +3579,8 @@
                 btn.classList.remove('active');
                 if ((type === 'all' && btn.textContent === 'All') ||
                     (type === 'image' && btn.textContent === 'Images') ||
-                    (type === 'video' && btn.textContent === 'Videos')) {
+                    (type === 'video' && btn.textContent === 'Videos') ||
+                    (type === 'audio' && btn.textContent === 'Audio')) {
                     btn.classList.add('active');
                 }
             });
@@ -3599,6 +3602,8 @@
                         return fileType.startsWith('image/');
                     } else if (currentMediaFilter === 'video') {
                         return fileType.startsWith('video/');
+                    } else if (currentMediaFilter === 'audio') {
+                        return fileType.startsWith('audio/');
                     }
                     return true;
                 });
@@ -3635,17 +3640,28 @@
                 const fileType = file.type || '';
                 const isImage = fileType.startsWith('image/');
                 const isVideo = fileType.startsWith('video/');
-                const typeLabel = isVideo ? 'video' : isImage ? 'image' : 'file';
+                const isAudio = fileType.startsWith('audio/');
+                const typeLabel = isVideo ? 'video' : isImage ? 'image' : isAudio ? 'audio' : 'file';
                 
                 // Create preview with container
                 let previewHtml = '';
-                if (isImage || isVideo) {
+                if (isImage || isVideo || isAudio) {
                     if (isVideo) {
                         previewHtml = `
                             <div class="media-item-preview-container">
                                 <video class="media-item-preview" muted preload="metadata">
                                     <source src="${file.url}" type="${fileType}">
                                 </video>
+                            </div>`;
+                    } else if (isAudio) {
+                        previewHtml = `
+                            <div class="media-item-preview-container">
+                                <div style="display: flex; flex-direction: column; align-items: center; padding: 10px;">
+                                    <span style="font-size: 48px; margin-bottom: 8px;">🎵</span>
+                                    <audio controls style="width: 100%; max-width: 150px;">
+                                        <source src="${file.url}" type="${fileType}">
+                                    </audio>
+                                </div>
                             </div>`;
                     } else {
                         previewHtml = `
@@ -3777,7 +3793,8 @@
                 btn.classList.remove('active');
                 if ((type === 'all' && btn.textContent === 'All') ||
                     (type === 'image' && btn.textContent === 'Images') ||
-                    (type === 'video' && btn.textContent === 'Videos')) {
+                    (type === 'video' && btn.textContent === 'Videos') ||
+                    (type === 'audio' && btn.textContent === 'Audio')) {
                     btn.classList.add('active');
                 }
             });
@@ -3791,6 +3808,8 @@
                         return fileType.startsWith('image/');
                     } else if (type === 'video') {
                         return fileType.startsWith('video/');
+                    } else if (type === 'audio') {
+                        return fileType.startsWith('audio/');
                     }
                     return true;
                 });
@@ -3820,6 +3839,8 @@
                         return fileType.startsWith('image/');
                     } else if (currentTabMediaFilter === 'video') {
                         return fileType.startsWith('video/');
+                    } else if (currentTabMediaFilter === 'audio') {
+                        return fileType.startsWith('audio/');
                     }
                     return true;
                 });
@@ -3855,16 +3876,27 @@
                 const fileType = file.type || '';
                 const isImage = fileType.startsWith('image/');
                 const isVideo = fileType.startsWith('video/');
-                const typeLabel = isImage ? 'image' : isVideo ? 'video' : 'file';
+                const isAudio = fileType.startsWith('audio/');
+                const typeLabel = isImage ? 'image' : isVideo ? 'video' : isAudio ? 'audio' : 'file';
                 
                 let previewHtml;
-                if (isImage || isVideo) {
+                if (isImage || isVideo || isAudio) {
                     if (isVideo) {
                         previewHtml = `
                             <div class="media-item-preview-container">
                                 <video class="media-item-preview" muted preload="metadata">
                                     <source src="${file.url}" type="${fileType}">
                                 </video>
+                            </div>`;
+                    } else if (isAudio) {
+                        previewHtml = `
+                            <div class="media-item-preview-container">
+                                <div style="display: flex; flex-direction: column; align-items: center; padding: 10px;">
+                                    <span style="font-size: 48px; margin-bottom: 8px;">🎵</span>
+                                    <audio controls style="width: 100%; max-width: 150px;">
+                                        <source src="${file.url}" type="${fileType}">
+                                    </audio>
+                                </div>
                             </div>`;
                     } else {
                         previewHtml = `
