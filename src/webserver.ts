@@ -953,6 +953,122 @@ export class WebServer {
       }
     });
 
+    // Test endpoint for debugging
+    this.app.post('/api/test', (req, res) => {
+      console.log('🧪 Test endpoint hit with body:', req.body);
+      res.json({ message: 'Test endpoint working', body: req.body });
+    });
+
+    // Upload file to Satellite CDN
+    this.app.post('/api/satellite/upload', async (req, res) => {
+      console.log('🛰️ Satellite upload request received for accountId:', req.query.accountId);
+      console.log('🛰️ Request body:', req.body);
+      
+      // Ensure we always send JSON response
+      res.setHeader('Content-Type', 'application/json');
+      
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        
+        if (!accountId) {
+          console.log('❌ No account ID provided');
+          return res.status(400).json({ error: 'Account ID is required' });
+        }
+
+        // Get the account
+        const account = await this.db.getAccount(accountId);
+        if (!account) {
+          console.log('❌ Account not found:', accountId);
+          return res.status(404).json({ error: 'Account not found' });
+        }
+
+        console.log('✅ Account found:', account.name);
+
+        // Get the nsec from keychain or database
+        let nsec: string | undefined = account.nsec || undefined;
+        if (account.keychain_ref) {
+          console.log('🔐 Attempting to get nsec from keychain for account:', accountId);
+          const keychainNsec = await getNsecFromKeychain(accountId);
+          if (keychainNsec) {
+            nsec = keychainNsec;
+            console.log('✅ Retrieved nsec from keychain');
+          } else {
+            console.log('⚠️ Failed to retrieve nsec from keychain');
+          }
+        }
+
+        if (!nsec) {
+          console.log('❌ No private key available for account:', accountId);
+          return res.status(400).json({ error: 'No private key available for this account' });
+        }
+
+        // Get file details from request body
+        const { fileName, fileSize, fileType, label } = req.body;
+        
+        if (!fileName || !fileSize || !fileType) {
+          return res.status(400).json({ error: 'File details are required' });
+        }
+
+        // Check file size limit (100MB)
+        const maxSize = 100 * 1024 * 1024; // 100MB in bytes
+        if (fileSize > maxSize) {
+          return res.status(400).json({ 
+            error: 'File too large',
+            details: `File size (${Math.round(fileSize / 1024 / 1024)}MB) exceeds limit of 100MB`
+          });
+        }
+
+        console.log('🔑 Decoding private key...');
+        // Decode the private key
+        const { data: privkey } = nip19.decode(nsec);
+        const pubkey = getPublicKey(privkey as Uint8Array);
+        console.log('✅ Public key derived:', pubkey.substring(0, 16) + '...');
+        
+        // Create the upload authorization event
+        const authTags = [
+          ['name', fileName],
+          ['size', fileSize.toString()]
+        ];
+        
+        if (label && label.trim()) {
+          authTags.push(['label', label.trim()]);
+        }
+        
+        const authEvent = {
+          kind: 22242,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: authTags,
+          content: 'Authorize Upload',
+          pubkey: pubkey
+        };
+
+        console.log('📝 Creating upload auth event:', { 
+          kind: authEvent.kind, 
+          content: authEvent.content, 
+          tags: authEvent.tags,
+          pubkey: authEvent.pubkey.substring(0, 16) + '...',
+          created_at: authEvent.created_at
+        });
+
+        // Sign the event
+        const signedEvent = finalizeEvent(authEvent, privkey as Uint8Array);
+        console.log('✅ Event signed with ID:', signedEvent.id.substring(0, 16) + '...');
+        
+        // Return the signed auth event for frontend to use
+        res.json({
+          auth: signedEvent,
+          uploadUrl: (process.env.SATELLITE_CDN_API || 'https://api.satellite.earth') + '/v1/media/item'
+        });
+        
+      } catch (error) {
+        console.error('💥 Error preparing Satellite upload:', error);
+        res.status(500).json({ 
+          error: 'Failed to prepare upload',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
     // Delete account
     this.app.delete('/api/accounts/:id', async (req, res) => {
       try {
