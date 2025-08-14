@@ -10,6 +10,11 @@ import SigningQueueService from './services/signing-queue.service.js';
 // Load environment variables from .env file
 dotenv.config();
 
+// Debug: Log feature flag values at startup
+console.log('🔧 Environment variables loaded:');
+console.log('🔧 SAT_PAY:', process.env.SAT_PAY);
+console.log('🔧 PORT:', process.env.PORT);
+
 const args = process.argv.slice(2);
 
 if (args.length === 0 || args[0] === 'daemon') {

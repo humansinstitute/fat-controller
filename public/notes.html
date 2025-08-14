@@ -1641,8 +1641,125 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
                     <h2>Media Manager</h2>
                     <div style="display: flex; gap: 10px;">
+                        <button type="button" id="buyStorageBtn" class="btn-new-note">💰 Buy Storage</button>
                         <button type="button" id="uploadMediaBtn" class="btn-new-note">📤 Upload File</button>
                         <button type="button" id="exportMediaBtn" class="btn-new-note">📥 Export CSV</button>
+                    </div>
+                </div>
+                
+                <!-- Storage Status Display -->
+                <div id="storage-status" class="form-section" style="margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3>Storage Status</h3>
+                        <button type="button" id="refreshStorageBtn" style="background: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px;">🔄 Refresh</button>
+                    </div>
+                    <div id="storage-info" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #28a745;" id="credit-total">-</div>
+                            <div style="font-size: 14px; color: #666;">GB Months Credit</div>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #007bff;" id="storage-used">-</div>
+                            <div style="font-size: 14px; color: #666;">Storage Used</div>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #6f42c1;" id="files-count">-</div>
+                            <div style="font-size: 14px; color: #666;">Files Stored</div>
+                        </div>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 24px; font-weight: bold; color: #fd7e14;" id="time-remaining">-</div>
+                            <div style="font-size: 14px; color: #666;">Days Remaining</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Storage Purchase Section -->
+                <div id="storage-purchase-section" class="form-section" style="display: none; margin-bottom: 20px;">
+                    <h3 style="margin-bottom: 15px;">Buy Satellite CDN Storage</h3>
+                    
+                    <div id="storage-purchase-form">
+                        <div class="form-group">
+                            <label for="gb-months-input">Storage Amount (GB Months)</label>
+                            <select id="gb-months-input" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                                <option value="1">1 GB Month - ~$0.05 USD</option>
+                                <option value="6">6 GB Months - ~$0.30 USD</option>
+                                <option value="12" selected>12 GB Months - ~$0.60 USD</option>
+                                <option value="24">24 GB Months - ~$1.20 USD</option>
+                                <option value="60">60 GB Months - ~$3.00 USD</option>
+                                <option value="120">120 GB Months - ~$6.00 USD</option>
+                            </select>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                1 GB Month = 1 GB of storage for 1 month at $0.05 USD
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button type="button" id="cancel-storage-purchase" class="btn-secondary">Cancel</button>
+                            <button type="button" id="request-storage-quote" class="btn-new-note">Get Quote</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Storage Purchase Progress -->
+                    <div id="storage-purchase-progress" style="display: none;">
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; text-align: center;">
+                            <div style="font-size: 18px; margin-bottom: 15px;">
+                                <span id="storage-purchase-status">💳 Getting quote...</span>
+                            </div>
+                            <div style="font-size: 14px; color: #666;">
+                                <span id="storage-purchase-text">Please wait...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Lightning Invoice -->
+                    <div id="lightning-invoice-section" style="display: none;">
+                        <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin-top: 15px;">
+                            <h4 style="margin-bottom: 15px; color: #856404;">⚡ Lightning Payment Required</h4>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <div style="font-weight: bold;">Amount: <span id="payment-amount-sats">-</span> sats (<span id="payment-amount-usd">-</span> USD)</div>
+                                <div style="font-size: 14px; color: #666;">For <span id="payment-gb-months">-</span> GB months of storage</div>
+                            </div>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <label style="font-weight: bold; margin-bottom: 5px; display: block;">Lightning Invoice:</label>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="text" id="lightning-invoice" readonly placeholder="Loading invoice..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; font-size: 12px; background: #f8f9fa;">
+                                    <button type="button" id="copy-invoice" class="btn-new-note" style="white-space: nowrap;">📋 Copy</button>
+                                </div>
+                            </div>
+                            
+                            <div id="qr-code-container" style="text-align: center; margin-bottom: 15px;">
+                                <div id="qr-code" style="display: inline-block;"></div>
+                            </div>
+                            
+                            <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px;">
+                                <button type="button" id="check-payment" class="btn-new-note">✅ Check Payment</button>
+                            </div>
+                            
+                            <div style="font-size: 12px; color: #666; text-align: center;">
+                                Pay this Lightning invoice with any Lightning wallet to purchase storage credit.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment Result -->
+                    <div id="storage-payment-result" style="display: none; margin-top: 15px;">
+                        <div id="storage-payment-success" style="display: none; background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; border-radius: 8px;">
+                            <strong>✅ Payment Successful!</strong>
+                            <div style="margin-top: 10px; font-size: 14px;">
+                                Your storage credit has been added to your account. You can now upload files!
+                            </div>
+                        </div>
+                        
+                        <div id="storage-payment-error" style="display: none; background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 8px;">
+                            <strong>❌ Payment Failed</strong>
+                            <div style="margin-top: 10px; font-size: 14px;" id="storage-payment-error-message"></div>
+                        </div>
+                        
+                        <div style="margin-top: 15px; text-align: center;">
+                            <button type="button" id="close-storage-purchase" class="btn-new-note">Close</button>
+                        </div>
                     </div>
                 </div>
                 
@@ -1994,7 +2111,7 @@
         });
         
         // View Management
-        function switchView(viewName) {
+        async function switchView(viewName) {
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             
@@ -2008,7 +2125,12 @@
             } else if (viewName === 'schedule') {
                 initializeQuickSchedule();
             } else if (viewName === 'media') {
-                loadTabMediaFiles();
+                // Ensure accounts are loaded before trying to get storage status
+                if (accounts.length === 0) {
+                    console.log('🔄 Loading accounts before media tab...');
+                    await loadAccounts();
+                }
+                loadStorageStatus(); // Load both media and storage status
             }
         }
         
@@ -4077,6 +4199,383 @@
                 document.getElementById('error-message').textContent = errorMessage || 'An unknown error occurred';
             }
         }
+
+        // Storage Purchase Functionality
+        let currentStorageOffer = null;
+        let currentVerifyUrl = null;
+        let satPayMode = 'LINK'; // Default to LINK for safety
+
+        // Load configuration from server
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                satPayMode = config.features?.satPay || 'LINK';
+                console.log('🔧 Loaded SAT_PAY config:', satPayMode);
+                updateBuyStorageButton();
+            } catch (error) {
+                console.error('Error loading configuration:', error);
+                satPayMode = 'LINK'; // Default to safe mode
+                updateBuyStorageButton();
+            }
+        }
+
+        // Update buy storage button based on feature flag
+        function updateBuyStorageButton() {
+            const buyButton = document.getElementById('buyStorageBtn');
+            const purchaseSection = document.getElementById('storage-purchase-section');
+            
+            if (!buyButton) return;
+            
+            if (satPayMode === 'LINK') {
+                buyButton.innerHTML = '💳 Buy Storage (Satellite.earth)';
+                buyButton.title = 'Opens Satellite CDN in a new window';
+                // Hide purchase section in LINK mode
+                if (purchaseSection) {
+                    purchaseSection.style.display = 'none';
+                }
+            } else {
+                buyButton.innerHTML = '💳 Buy Storage';  
+                buyButton.title = 'Purchase storage credit with Lightning';
+            }
+        }
+
+        // Load storage status when media tab is opened
+        async function loadStorageStatus() {
+            console.log('🛰️ Loading storage status for media tab, selectedAccountId:', selectedAccountId);
+            
+            // Load configuration first
+            await loadConfig();
+            
+            loadTabMediaFiles(); // Also load media files
+            refreshStorageStatus();
+        }
+
+        // Refresh storage status
+        async function refreshStorageStatus() {
+            try {
+                console.log('📊 Refreshing storage status for accountId:', selectedAccountId);
+                
+                if (!selectedAccountId) {
+                    console.error('❌ No selected account ID for storage status check');
+                    document.getElementById('credit-total').textContent = 'No Account';
+                    document.getElementById('storage-used').textContent = 'No Account';
+                    document.getElementById('files-count').textContent = 'No Account';
+                    document.getElementById('time-remaining').textContent = 'No Account';
+                    return;
+                }
+                
+                const response = await fetch(`/api/satellite/account/status?accountId=${selectedAccountId}`);
+                console.log('📡 Storage status API response:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.details || error.error || 'Failed to get storage status');
+                }
+                
+                const status = await response.json();
+                console.log('💰 Storage status data:', status);
+                
+                // Update storage status display
+                document.getElementById('credit-total').textContent = status.creditTotal || '0';
+                document.getElementById('storage-used').textContent = formatFileSize(status.storageTotal || 0);
+                document.getElementById('files-count').textContent = status.files || '0';
+                
+                // Calculate days remaining
+                const daysRemaining = status.timeRemaining ? Math.ceil(status.timeRemaining / (24 * 60 * 60)) : 0;
+                document.getElementById('time-remaining').textContent = daysRemaining > 0 ? daysRemaining : '0';
+                
+            } catch (error) {
+                console.error('❌ Error loading storage status:', error);
+                document.getElementById('credit-total').textContent = 'Error';
+                document.getElementById('storage-used').textContent = 'Error';
+                document.getElementById('files-count').textContent = 'Error';
+                document.getElementById('time-remaining').textContent = 'Error';
+            }
+        }
+
+        // Show/hide storage purchase section or open external link
+        document.getElementById('buyStorageBtn').addEventListener('click', () => {
+            if (satPayMode === 'LINK') {
+                // Open Satellite CDN in new window/tab
+                console.log('🔗 Opening Satellite CDN in new window');
+                window.open('https://satellite.earth/cdn', '_blank');
+                return;
+            }
+            
+            // Show purchase section for PAY mode
+            const purchaseSection = document.getElementById('storage-purchase-section');
+            const isVisible = purchaseSection.style.display !== 'none';
+            purchaseSection.style.display = isVisible ? 'none' : 'block';
+            
+            if (!isVisible) {
+                resetStoragePurchaseForm();
+            }
+        });
+
+        // Refresh storage status
+        document.getElementById('refreshStorageBtn').addEventListener('click', refreshStorageStatus);
+
+        // Cancel storage purchase
+        document.getElementById('cancel-storage-purchase').addEventListener('click', () => {
+            document.getElementById('storage-purchase-section').style.display = 'none';
+            resetStoragePurchaseForm();
+        });
+
+        // Request storage quote
+        document.getElementById('request-storage-quote').addEventListener('click', async () => {
+            const gbMonths = parseInt(document.getElementById('gb-months-input').value);
+            await requestStorageCredit(gbMonths);
+        });
+
+        // Copy invoice to clipboard
+        document.getElementById('copy-invoice').addEventListener('click', async () => {
+            const invoice = document.getElementById('lightning-invoice').value;
+            try {
+                await navigator.clipboard.writeText(invoice);
+                showNotification('Invoice copied to clipboard!', 'success');
+            } catch (error) {
+                // Fallback for older browsers
+                document.getElementById('lightning-invoice').select();
+                document.execCommand('copy');
+                showNotification('Invoice copied to clipboard!', 'success');
+            }
+        });
+
+
+        // Check payment status
+        document.getElementById('check-payment').addEventListener('click', async () => {
+            await checkPaymentStatus();
+        });
+
+        // Close storage purchase
+        document.getElementById('close-storage-purchase').addEventListener('click', () => {
+            document.getElementById('storage-purchase-section').style.display = 'none';
+            resetStoragePurchaseForm();
+            refreshStorageStatus(); // Refresh status after purchase
+        });
+
+        function resetStoragePurchaseForm() {
+            currentStorageOffer = null;
+            currentVerifyUrl = null;
+            document.getElementById('storage-purchase-form').style.display = 'block';
+            document.getElementById('storage-purchase-progress').style.display = 'none';
+            document.getElementById('lightning-invoice-section').style.display = 'none';
+            document.getElementById('storage-payment-result').style.display = 'none';
+            document.getElementById('lightning-invoice').value = '';
+            document.getElementById('lightning-invoice').placeholder = 'Loading invoice...';
+            document.getElementById('qr-code').innerHTML = '';
+        }
+
+        async function requestStorageCredit(gbMonths) {
+            try {
+                // Show progress
+                document.getElementById('storage-purchase-form').style.display = 'none';
+                document.getElementById('storage-purchase-progress').style.display = 'block';
+                document.getElementById('storage-purchase-status').textContent = '💳 Getting quote...';
+                document.getElementById('storage-purchase-text').textContent = 'Requesting storage credit quote from Satellite CDN...';
+                
+                // Request storage credit
+                const response = await fetch(`/api/satellite/credit/request?accountId=${selectedAccountId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gbMonths })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.details || error.error || 'Failed to request storage credit');
+                }
+                
+                const creditOffer = await response.json();
+                currentStorageOffer = creditOffer;
+                
+                document.getElementById('storage-purchase-status').textContent = '⚡ Generating invoice...';
+                document.getElementById('storage-purchase-text').textContent = 'Creating Lightning payment invoice...';
+                
+                // Generate Lightning invoice
+                const invoiceResponse = await fetch(`/api/satellite/credit/invoice?accountId=${selectedAccountId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        offer: creditOffer.offer,
+                        amount: creditOffer.amount,
+                        callback: creditOffer.callback
+                    })
+                });
+                
+                if (!invoiceResponse.ok) {
+                    const error = await invoiceResponse.json();
+                    throw new Error(error.details || error.error || 'Failed to generate Lightning invoice');
+                }
+                
+                const invoiceData = await invoiceResponse.json();
+                
+                // Store the verify URL for payment verification
+                currentVerifyUrl = invoiceData.verify || null;
+                console.log('🔍 Stored verify URL for payment verification:', currentVerifyUrl);
+                
+                // Show Lightning invoice
+                document.getElementById('storage-purchase-progress').style.display = 'none';
+                document.getElementById('lightning-invoice-section').style.display = 'block';
+                
+                // Calculate amounts
+                const satsAmount = Math.round(creditOffer.amount / 1000); // Convert millisats to sats
+                
+                // Calculate USD amount: GB months * rate per GB month
+                const usdRate = creditOffer.rateFiat?.usd || 0.05; // Default to $0.05 per GB month if not provided
+                const usdAmount = (gbMonths * usdRate).toFixed(2);
+                
+                document.getElementById('payment-amount-sats').textContent = satsAmount.toLocaleString();
+                document.getElementById('payment-amount-usd').textContent = '$' + usdAmount;
+                document.getElementById('payment-gb-months').textContent = gbMonths;
+                
+                // Try different possible keys for the Lightning invoice
+                const invoice = invoiceData.pr || invoiceData.payment_request || invoiceData.invoice || invoiceData.bolt11 || '';
+                console.log('📋 Invoice data keys:', Object.keys(invoiceData));
+                console.log('📋 Invoice response status:', invoiceData.status);
+                console.log('📋 Invoice response reason:', invoiceData.reason);
+                console.log('📋 Found invoice:', invoice ? invoice.substring(0, 20) + '...' : 'NONE');
+                
+                if (invoice) {
+                    document.getElementById('lightning-invoice').value = invoice;
+                    document.getElementById('lightning-invoice').placeholder = 'Lightning invoice loaded';
+                    // Automatically generate QR code
+                    generateQRCode(invoice);
+                } else {
+                    document.getElementById('lightning-invoice').value = '';
+                    document.getElementById('lightning-invoice').placeholder = 'Invoice generation failed';
+                    document.getElementById('qr-code').innerHTML = '<p style="color: #d32f2f;">Invoice generation failed. Please try again.</p>';
+                    throw new Error(`Invoice generation failed: ${invoiceData.status} - ${invoiceData.reason}`);
+                }
+                
+            } catch (error) {
+                console.error('Storage credit request error:', error);
+                showStoragePaymentResult(false, error.message);
+            }
+        }
+
+        async function checkPaymentStatus() {
+            try {
+                document.getElementById('check-payment').disabled = true;
+                document.getElementById('check-payment').textContent = '🔄 Checking...';
+                
+                if (!currentVerifyUrl) {
+                    console.log('⚠️ No verify URL available, falling back to account status check');
+                    // Fallback to the old method if no verify URL
+                    await refreshStorageStatus();
+                    const creditElement = document.getElementById('credit-total');
+                    const currentCredit = parseInt(creditElement.textContent) || 0;
+                    
+                    if (currentCredit > 0) {
+                        showStoragePaymentResult(true);
+                    } else {
+                        showNotification('Payment not detected yet. Please wait and try again.', 'warning');
+                    }
+                    return;
+                }
+                
+                console.log('🔍 Verifying payment with verify URL:', currentVerifyUrl);
+                
+                // Use the new payment verification endpoint
+                const verifyResponse = await fetch(`/api/satellite/credit/verify?accountId=${selectedAccountId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ verifyUrl: currentVerifyUrl })
+                });
+                
+                if (!verifyResponse.ok) {
+                    const error = await verifyResponse.json();
+                    throw new Error(error.details || error.error || 'Failed to verify payment');
+                }
+                
+                const verifyResult = await verifyResponse.json();
+                console.log('✅ Payment verification result:', verifyResult);
+                
+                if (verifyResult.paid && verifyResult.verified) {
+                    console.log('💰 Payment confirmed! Updating UI...');
+                    
+                    // Update storage status in the UI if provided
+                    if (verifyResult.accountStatus) {
+                        document.getElementById('credit-total').textContent = verifyResult.accountStatus.creditTotal || '0';
+                        document.getElementById('storage-used').textContent = formatFileSize(verifyResult.accountStatus.storageTotal || 0);
+                        document.getElementById('files-count').textContent = verifyResult.accountStatus.files || '0';
+                        
+                        // Calculate and update days remaining
+                        const daysRemaining = verifyResult.accountStatus.timeRemaining ? Math.ceil(verifyResult.accountStatus.timeRemaining / (24 * 60 * 60)) : 0;
+                        document.getElementById('time-remaining').textContent = daysRemaining > 0 ? daysRemaining : '0';
+                    } else {
+                        // Refresh storage status manually
+                        await refreshStorageStatus();
+                    }
+                    
+                    showStoragePaymentResult(true);
+                } else {
+                    const message = verifyResult.message || 'Payment not yet confirmed. Please wait a moment and try again.';
+                    showNotification(message, 'warning');
+                }
+                
+            } catch (error) {
+                console.error('Payment check error:', error);
+                showNotification('Error checking payment status: ' + error.message, 'error');
+            } finally {
+                document.getElementById('check-payment').disabled = false;
+                document.getElementById('check-payment').textContent = '✅ Check Payment';
+            }
+        }
+
+        function showStoragePaymentResult(success, errorMessage = '') {
+            document.getElementById('lightning-invoice-section').style.display = 'none';
+            document.getElementById('storage-payment-result').style.display = 'block';
+            
+            if (success) {
+                document.getElementById('storage-payment-success').style.display = 'block';
+                document.getElementById('storage-payment-error').style.display = 'none';
+            } else {
+                document.getElementById('storage-payment-success').style.display = 'none';
+                document.getElementById('storage-payment-error').style.display = 'block';
+                document.getElementById('storage-payment-error-message').textContent = errorMessage || 'An unknown error occurred';
+            }
+        }
+
+        function generateQRCode(text) {
+            // Simple QR code generation using a public API
+            const qrContainer = document.getElementById('qr-code');
+            const size = 200;
+            const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+            
+            qrContainer.innerHTML = `<img src="${qrUrl}" alt="QR Code for Lightning Invoice" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px;">`;
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            const colors = {
+                success: '#28a745',
+                error: '#dc3545',
+                warning: '#ffc107',
+                info: '#17a2b8'
+            };
+            
+            notification.style.cssText = `
+                position: fixed; 
+                top: 20px; 
+                right: 20px; 
+                background: ${colors[type] || colors.info}; 
+                color: white; 
+                padding: 12px 20px; 
+                border-radius: 6px; 
+                z-index: 10000;
+                max-width: 300px;
+                font-size: 14px;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+
 
         // Add account modal handlers
         document.getElementById('addAccountBtn').addEventListener('click', () => {

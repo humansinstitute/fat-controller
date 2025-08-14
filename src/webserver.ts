@@ -816,9 +816,16 @@ export class WebServer {
 
     // Get configuration for frontend
     this.app.get('/api/config', (req, res) => {
+      const satPayValue = process.env.SAT_PAY || 'LINK';
+      console.log('🔧 Config endpoint called - SAT_PAY env value:', process.env.SAT_PAY);
+      console.log('🔧 Config endpoint returning - satPay:', satPayValue);
+      
       res.json({
         giphyApiKey: process.env.GIPHY_API_KEY || null,
-        satelliteApiUrl: process.env.SATELLITE_CDN_API || 'https://api.satellite.earth'
+        satelliteApiUrl: process.env.SATELLITE_CDN_API || 'https://api.satellite.earth',
+        features: {
+          satPay: satPayValue
+        }
       });
     });
 
@@ -1064,6 +1071,451 @@ export class WebServer {
         console.error('💥 Error preparing Satellite upload:', error);
         res.status(500).json({ 
           error: 'Failed to prepare upload',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
+    // Request storage credit from Satellite CDN
+    this.app.post('/api/satellite/credit/request', async (req, res) => {
+      console.log('💳 Satellite credit request received for accountId:', req.query.accountId);
+      
+      // Ensure we always send JSON response
+      res.setHeader('Content-Type', 'application/json');
+      
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        const { gbMonths } = req.body;
+        
+        if (!accountId) {
+          console.log('❌ No account ID provided');
+          return res.status(400).json({ error: 'Account ID is required' });
+        }
+
+        if (!gbMonths || gbMonths < 1) {
+          return res.status(400).json({ error: 'GB months must be at least 1' });
+        }
+
+        // Get the account
+        const account = await this.db.getAccount(accountId);
+        if (!account) {
+          console.log('❌ Account not found:', accountId);
+          return res.status(404).json({ error: 'Account not found' });
+        }
+
+        console.log('✅ Account found:', account.name);
+
+        // Get the nsec from keychain or database
+        let nsec: string | undefined = account.nsec || undefined;
+        if (account.keychain_ref) {
+          console.log('🔐 Attempting to get nsec from keychain for account:', accountId);
+          const keychainNsec = await getNsecFromKeychain(accountId);
+          if (keychainNsec) {
+            nsec = keychainNsec;
+            console.log('✅ Retrieved nsec from keychain');
+          }
+        }
+
+        if (!nsec) {
+          console.log('❌ No private key available for account:', accountId);
+          return res.status(400).json({ error: 'No private key available for this account' });
+        }
+
+        console.log('🔑 Decoding private key...');
+        // Decode the private key
+        const { data: privkey } = nip19.decode(nsec);
+        const pubkey = getPublicKey(privkey as Uint8Array);
+        console.log('✅ Public key derived:', pubkey.substring(0, 16) + '...');
+        
+        // Create the storage request event
+        const requestEvent = {
+          kind: 22242,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [['gb_months', gbMonths.toString()]],
+          content: 'Request Storage',
+          pubkey: pubkey
+        };
+
+        console.log('📝 Creating storage request event:', { 
+          kind: requestEvent.kind, 
+          content: requestEvent.content, 
+          tags: requestEvent.tags,
+          pubkey: requestEvent.pubkey.substring(0, 16) + '...',
+          created_at: requestEvent.created_at
+        });
+
+        // Sign the event
+        const signedEvent = finalizeEvent(requestEvent, privkey as Uint8Array);
+        console.log('✅ Event signed with ID:', signedEvent.id.substring(0, 16) + '...');
+        
+        // Request storage credit from Satellite API
+        const authParam = encodeURIComponent(JSON.stringify(signedEvent));
+        const satelliteApiUrl = process.env.SATELLITE_CDN_API || 'https://api.satellite.earth';
+        const creditUrl = `${satelliteApiUrl}/v1/media/account/credit?auth=${authParam}`;
+        
+        console.log('🌐 Requesting storage credit from Satellite API...');
+        const response = await fetch(creditUrl);
+        console.log('📡 Satellite credit API response:', response.status, response.statusText);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.log('❌ Satellite credit API error response:', errorText);
+          
+          if (response.status === 403) {
+            return res.status(403).json({ 
+              error: 'Authentication failed with Satellite CDN',
+              details: errorText
+            });
+          }
+          throw new Error(`Satellite API returned ${response.status}: ${errorText}`);
+        }
+
+        const creditData = await response.json() as any;
+        console.log('✅ Satellite credit response:', {
+          amount: creditData.amount,
+          callback: creditData.callback,
+          hasOffer: !!creditData.offer
+        });
+        
+        // Return the offer details
+        res.json({
+          offer: creditData.offer,
+          amount: creditData.amount, // amount in millisats
+          callback: creditData.callback,
+          rateFiat: creditData.rateFiat,
+          gbMonths: gbMonths
+        });
+        
+      } catch (error) {
+        console.error('💥 Error requesting Satellite credit:', error);
+        res.status(500).json({ 
+          error: 'Failed to request storage credit',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
+    // Generate Lightning invoice for Satellite storage
+    this.app.post('/api/satellite/credit/invoice', async (req, res) => {
+      console.log('⚡ Satellite invoice request received for accountId:', req.query.accountId);
+      
+      // Ensure we always send JSON response
+      res.setHeader('Content-Type', 'application/json');
+      
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        const { offer, amount, callback } = req.body;
+        
+        if (!accountId) {
+          return res.status(400).json({ error: 'Account ID is required' });
+        }
+
+        if (!offer || !amount || !callback) {
+          return res.status(400).json({ error: 'Offer, amount, and callback are required' });
+        }
+
+        // Get the account
+        const account = await this.db.getAccount(accountId);
+        if (!account) {
+          return res.status(404).json({ error: 'Account not found' });
+        }
+
+        // Get the nsec from keychain or database
+        let nsec: string | undefined = account.nsec || undefined;
+        if (account.keychain_ref) {
+          const keychainNsec = await getNsecFromKeychain(accountId);
+          if (keychainNsec) {
+            nsec = keychainNsec;
+          }
+        }
+
+        if (!nsec) {
+          return res.status(400).json({ error: 'No private key available for this account' });
+        }
+
+        // Decode the private key
+        const { data: privkey } = nip19.decode(nsec);
+        const pubkey = getPublicKey(privkey as Uint8Array);
+        
+        const npub = nip19.npubEncode(pubkey);
+        console.log('🔑 Payment being made by pubkey:', pubkey);
+        console.log('🔑 Payment being made by npub:', npub);
+        console.log('🔑 This should match your Satellite account pubkey/npub');
+        
+        // Create a zap request (kind 9734) based on the offer (kind 9733)
+        const zapRequest = {
+          kind: 9734,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [
+            ['relays', 'wss://relay.damus.io'], // Add at least one relay
+            ['amount', amount.toString()],
+            ['p', pubkey], // recipient pubkey
+            ['e', offer.id] // reference to the offer event
+          ],
+          content: '',
+          pubkey: pubkey
+        };
+        
+        const signedPayment = finalizeEvent(zapRequest, privkey as Uint8Array);
+        console.log('✅ Zap request signed with ID:', signedPayment.id.substring(0, 16) + '...');
+        
+        // Request Lightning invoice
+        const invoiceUrl = `${callback}?amount=${amount}&nostr=${encodeURIComponent(JSON.stringify(signedPayment))}`;
+        
+        console.log('⚡ Requesting Lightning invoice...');
+        const invoiceResponse = await fetch(invoiceUrl);
+        console.log('📡 Invoice API response:', invoiceResponse.status, invoiceResponse.statusText);
+        
+        if (!invoiceResponse.ok) {
+          const errorText = await invoiceResponse.text();
+          console.log('❌ Invoice API error response:', errorText);
+          throw new Error(`Invoice generation failed (${invoiceResponse.status}): ${errorText}`);
+        }
+
+        const invoiceData = await invoiceResponse.json() as any;
+        console.log('✅ Lightning invoice response:', {
+          hasInvoice: !!(invoiceData.pr || invoiceData.payment_request || invoiceData.invoice),
+          responseKeys: Object.keys(invoiceData),
+          status: invoiceData.status,
+          reason: invoiceData.reason,
+          hasVerifyUrl: !!invoiceData.verify,
+          fullResponse: invoiceData
+        });
+        
+        // Include the verify URL in the response for payment verification
+        res.json({
+          ...invoiceData,
+          accountId: accountId // Include account ID for verification
+        });
+        
+      } catch (error) {
+        console.error('💥 Error generating Lightning invoice:', error);
+        res.status(500).json({ 
+          error: 'Failed to generate Lightning invoice',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
+    // Verify Lightning payment status
+    this.app.post('/api/satellite/credit/verify', async (req, res) => {
+      console.log('🔍 Lightning payment verification request for accountId:', req.query.accountId);
+      
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        const { verifyUrl } = req.body;
+        
+        if (!accountId) {
+          return res.status(400).json({ error: 'Account ID is required' });
+        }
+
+        if (!verifyUrl) {
+          return res.status(400).json({ error: 'Verify URL is required' });
+        }
+
+        console.log('⚡ Checking payment status at verify URL:', verifyUrl);
+        
+        // Check payment status using the verify URL
+        const verifyResponse = await fetch(verifyUrl);
+        
+        if (!verifyResponse.ok) {
+          console.log('❌ Payment verification failed:', verifyResponse.status, verifyResponse.statusText);
+          return res.status(400).json({ 
+            paid: false, 
+            error: `Verification failed: ${verifyResponse.status}` 
+          });
+        }
+
+        const verifyData = await verifyResponse.json() as any;
+        console.log('🔍 Payment verification response:', verifyData);
+        
+        // Check if payment is confirmed
+        const isPaid = verifyData.settled === true || verifyData.paid === true || verifyData.status === 'paid';
+        
+        if (isPaid) {
+          console.log('✅ Payment confirmed! Refreshing account status...');
+          
+          // Wait longer for Satellite to detect and process the payment
+          console.log('⏳ Waiting 10 seconds for Satellite to detect payment...');
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          
+          // Get updated account status to confirm credit was added (with retry)
+          let accountData: any = null;
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          while (retryCount < maxRetries && (!accountData || accountData.creditTotal === 0)) {
+            try {
+              const account = await this.db.getAccount(accountId);
+              if (account) {
+                let nsec: string | undefined = account.nsec || undefined;
+                if (account.keychain_ref) {
+                  const keychainNsec = await getNsecFromKeychain(accountId);
+                  if (keychainNsec) {
+                    nsec = keychainNsec;
+                  }
+                }
+
+                if (nsec) {
+                  const { data: privkey } = nip19.decode(nsec);
+                  const pubkey = getPublicKey(privkey as Uint8Array);
+                  
+                  const authEvent = {
+                    kind: 22242,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: [],
+                    content: 'Authenticate User',
+                    pubkey: pubkey
+                  };
+
+                  const signedEvent = finalizeEvent(authEvent, privkey as Uint8Array);
+                  
+                  const authParam = encodeURIComponent(JSON.stringify(signedEvent));
+                  const satelliteApiUrl = process.env.SATELLITE_CDN_API || 'https://api.satellite.earth';
+                  const statusUrl = `${satelliteApiUrl}/v1/media/account?auth=${authParam}`;
+                  
+                  const statusResponse = await fetch(statusUrl);
+                  if (statusResponse.ok) {
+                    accountData = await statusResponse.json() as any;
+                    console.log(`💰 Account status check ${retryCount + 1}/${maxRetries}:`, {
+                      creditTotal: accountData.creditTotal,
+                      storageTotal: accountData.storageTotal,
+                      paidThrough: accountData.paidThrough,
+                      timeRemaining: accountData.timeRemaining
+                    });
+                    
+                    if (accountData.creditTotal > 0) {
+                      console.log('✅ Credit detected! Payment successfully processed by Satellite');
+                      console.log('🔍 Account auth details - pubkey:', pubkey.substring(0, 16) + '...');
+                      
+                      return res.json({
+                        paid: true,
+                        verified: true,
+                        accountStatus: {
+                          creditTotal: accountData.creditTotal,
+                          storageTotal: accountData.storageTotal,
+                          usageTotal: accountData.usageTotal,
+                          files: accountData.files?.length || 0
+                        }
+                      });
+                    } else if (retryCount < maxRetries - 1) {
+                      console.log(`⏳ Credit not yet detected, waiting 15 seconds before retry ${retryCount + 2}...`);
+                      await new Promise(resolve => setTimeout(resolve, 15000));
+                    }
+                  }
+                }
+              }
+            } catch (statusError) {
+              console.log(`⚠️ Could not refresh account status after payment (attempt ${retryCount + 1}):`, statusError);
+            }
+            
+            retryCount++;
+          }
+          
+          return res.json({ paid: true, verified: true });
+        } else {
+          console.log('⏳ Payment not yet confirmed');
+          return res.json({ 
+            paid: false, 
+            status: verifyData.status || 'pending',
+            message: 'Payment not yet confirmed'
+          });
+        }
+        
+      } catch (error) {
+        console.error('💥 Error verifying Lightning payment:', error);
+        res.status(500).json({ 
+          error: 'Failed to verify payment',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    });
+
+    // Check account storage status
+    this.app.get('/api/satellite/account/status', async (req, res) => {
+      console.log('📊 Satellite account status request for accountId:', req.query.accountId);
+      
+      try {
+        const accountId = req.query.accountId ? parseInt(req.query.accountId as string) : undefined;
+        
+        if (!accountId) {
+          return res.status(400).json({ error: 'Account ID is required' });
+        }
+
+        // Get the account
+        const account = await this.db.getAccount(accountId);
+        if (!account) {
+          return res.status(404).json({ error: 'Account not found' });
+        }
+
+        // Get the nsec from keychain or database
+        let nsec: string | undefined = account.nsec || undefined;
+        if (account.keychain_ref) {
+          const keychainNsec = await getNsecFromKeychain(accountId);
+          if (keychainNsec) {
+            nsec = keychainNsec;
+          }
+        }
+
+        if (!nsec) {
+          return res.status(400).json({ error: 'No private key available for this account' });
+        }
+
+        // Decode the private key
+        const { data: privkey } = nip19.decode(nsec);
+        const pubkey = getPublicKey(privkey as Uint8Array);
+        
+        const npub = nip19.npubEncode(pubkey);
+        console.log('🔑 Checking account status for pubkey:', pubkey);
+        console.log('🔑 Checking account status for npub:', npub);
+        console.log('🔑 This pubkey/npub should match your Satellite CDN account');
+        
+        // Create the authentication event
+        const authEvent = {
+          kind: 22242,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [],
+          content: 'Authenticate User',
+          pubkey: pubkey
+        };
+
+        // Sign the event
+        const signedEvent = finalizeEvent(authEvent, privkey as Uint8Array);
+        
+        // Get account status from Satellite API
+        const authParam = encodeURIComponent(JSON.stringify(signedEvent));
+        const satelliteApiUrl = process.env.SATELLITE_CDN_API || 'https://api.satellite.earth';
+        const statusUrl = `${satelliteApiUrl}/v1/media/account?auth=${authParam}`;
+        
+        const response = await fetch(statusUrl);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          if (response.status === 403) {
+            return res.status(403).json({ 
+              error: 'Authentication failed with Satellite CDN',
+              details: errorText
+            });
+          }
+          throw new Error(`Satellite API returned ${response.status}: ${errorText}`);
+        }
+
+        const accountData = await response.json() as any;
+        
+        res.json({
+          creditTotal: accountData.creditTotal,
+          storageTotal: accountData.storageTotal,
+          usageTotal: accountData.usageTotal,
+          paidThrough: accountData.paidThrough,
+          timeRemaining: accountData.timeRemaining,
+          rateFiat: accountData.rateFiat,
+          files: accountData.files?.length || 0
+        });
+        
+      } catch (error) {
+        console.error('💥 Error getting Satellite account status:', error);
+        res.status(500).json({ 
+          error: 'Failed to get account status',
           details: error instanceof Error ? error.message : 'Unknown error'
         });
       }
