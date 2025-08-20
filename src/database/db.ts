@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { ScheduledPost, NostrAccount, Note, NoteWithCounts, Post, PostStats, AggregateStats, TagInfo } from './schema.js';
+import { ScheduledPost, NostrAccount, Note, NoteWithCounts, Post, PostStats, AggregateStats, TagInfo, MasterAccount, Session, SigningKey, AuditLog } from './schema.js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { mkdirSync } from 'fs';
@@ -542,12 +542,13 @@ class PostDatabase {
     });
   }
 
-  // Account management methods
-  addAccount(name: string, npub: string, publishMethod: 'api' | 'nostrmq' | 'direct' = 'direct', apiEndpoint?: string, nostrmqTarget?: string, nsec?: string, relays?: string, keychainRef?: string): Promise<number> {
+  // Account management methods (updated to use signing_keys table)
+  addAccount(name: string, npub: string, publishMethod: 'api' | 'nostrmq' | 'direct' = 'direct', apiEndpoint?: string, nostrmqTarget?: string, nsec?: string, relays?: string, keychainRef?: string, masterAccountNpub?: string): Promise<number> {
     return new Promise((resolve, reject) => {
+      // Use signing_keys table instead of nostr_accounts
       this.db.run(
-        'INSERT INTO nostr_accounts (name, npub, api_endpoint, publish_method, nostrmq_target, nsec, relays, keychain_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [name, npub, apiEndpoint || null, publishMethod, nostrmqTarget || null, nsec || null, relays || null, keychainRef || null],
+        'INSERT INTO signing_keys (name, npub, api_endpoint, publish_method, nostrmq_target, nsec, relays, keychain_ref, master_account_npub, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [name, npub, apiEndpoint || null, publishMethod, nostrmqTarget || null, nsec || null, relays || null, keychainRef || null, masterAccountNpub || null, 1],
         function(err) {
           if (err) reject(err);
           else resolve(this.lastID);
@@ -558,8 +559,9 @@ class PostDatabase {
 
   getAccounts(): Promise<NostrAccount[]> {
     return new Promise((resolve, reject) => {
+      // Use signing_keys table
       this.db.all(
-        'SELECT * FROM nostr_accounts ORDER BY created_at ASC',
+        'SELECT * FROM signing_keys ORDER BY created_at ASC',
         [],
         (err, rows) => {
           if (err) reject(err);
@@ -572,7 +574,7 @@ class PostDatabase {
   getAccount(id: number): Promise<NostrAccount | null> {
     return new Promise((resolve, reject) => {
       this.db.get(
-        'SELECT * FROM nostr_accounts WHERE id = ?',
+        'SELECT * FROM signing_keys WHERE id = ?',
         [id],
         (err, row) => {
           if (err) reject(err);
@@ -586,7 +588,7 @@ class PostDatabase {
     return new Promise((resolve, reject) => {
       this.db.serialize(() => {
         // Deactivate all accounts
-        this.db.run('UPDATE nostr_accounts SET is_active = 0', [], (err) => {
+        this.db.run('UPDATE signing_keys SET is_active = 0', [], (err) => {
           if (err) {
             reject(err);
             return;
@@ -594,7 +596,7 @@ class PostDatabase {
           
           // Activate the selected account
           this.db.run(
-            'UPDATE nostr_accounts SET is_active = 1 WHERE id = ?',
+            'UPDATE signing_keys SET is_active = 1 WHERE id = ?',
             [id],
             (err) => {
               if (err) reject(err);
@@ -609,7 +611,7 @@ class PostDatabase {
   getActiveAccount(): Promise<NostrAccount | null> {
     return new Promise((resolve, reject) => {
       this.db.get(
-        'SELECT * FROM nostr_accounts WHERE is_active = 1 LIMIT 1',
+        'SELECT * FROM signing_keys WHERE is_active = 1 LIMIT 1',
         [],
         (err, row) => {
           if (err) reject(err);
@@ -639,7 +641,7 @@ class PostDatabase {
         });
         
         // Finally delete the account
-        this.db.run('DELETE FROM nostr_accounts WHERE id = ?', [id], (err) => {
+        this.db.run('DELETE FROM signing_keys WHERE id = ?', [id], (err) => {
           if (err) reject(err);
           else resolve();
         });
@@ -1001,9 +1003,174 @@ class PostDatabase {
     });
   }
 
+  // Master Account methods
+  getMasterAccount(npub: string): Promise<MasterAccount | null> {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        'SELECT * FROM master_accounts WHERE npub = ?',
+        [npub],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row as MasterAccount || null);
+        }
+      );
+    });
+  }
+
+  createMasterAccount(account: MasterAccount): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        `INSERT INTO master_accounts (npub, display_name, created_at, last_login, settings, status) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [account.npub, account.display_name, account.created_at, account.last_login, account.settings, account.status],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  updateMasterAccountLastLogin(npub: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE master_accounts SET last_login = ? WHERE npub = ?',
+        [new Date().toISOString(), npub],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  // Session methods
+  createSession(session: Session): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        `INSERT INTO sessions (id, master_account_npub, token_hash, expires_at, created_at, last_activity, user_agent, ip_address)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [session.id, session.master_account_npub, session.token_hash, session.expires_at, 
+         session.created_at, session.last_activity, session.user_agent, session.ip_address],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  getSessionByToken(tokenHash: string): Promise<Session | null> {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        'SELECT * FROM sessions WHERE token_hash = ?',
+        [tokenHash],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row as Session || null);
+        }
+      );
+    });
+  }
+
+  updateSessionActivity(sessionId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE sessions SET last_activity = ? WHERE id = ?',
+        [new Date().toISOString(), sessionId],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  deleteSession(sessionId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'DELETE FROM sessions WHERE id = ?',
+        [sessionId],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  deleteExpiredSessions(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'DELETE FROM sessions WHERE expires_at < ?',
+        [new Date().toISOString()],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  // Signing key methods (renamed from accounts)
+  getUnclaimedSigningKeys(): Promise<SigningKey[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        'SELECT * FROM signing_keys WHERE master_account_npub IS NULL',
+        [],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows as SigningKey[]);
+        }
+      );
+    });
+  }
+
+  assignSigningKeyToMaster(keyId: number, masterNpub: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        'UPDATE signing_keys SET master_account_npub = ? WHERE id = ?',
+        [masterNpub, keyId],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
+  getSigningKeysByMaster(masterNpub: string): Promise<SigningKey[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        'SELECT * FROM signing_keys WHERE master_account_npub = ?',
+        [masterNpub],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows as SigningKey[]);
+        }
+      );
+    });
+  }
+
+  // Audit log methods
+  createAuditLog(log: AuditLog): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        `INSERT INTO audit_log (master_account_npub, action, entity_type, entity_id, details, timestamp, ip_address)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [log.master_account_npub, log.action, log.entity_type, log.entity_id, log.details, log.timestamp, log.ip_address],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  }
+
   close(): void {
     this.db.close();
   }
 }
 
+export { PostDatabase };
 export default PostDatabase;

@@ -7,6 +7,7 @@ export interface Note {
   metadata?: string; // JSON field for additional data
   tags?: string; // JSON array of tags
   pinned?: boolean; // Whether the note is pinned
+  master_account_npub?: string; // Master account that owns this note
 }
 
 export interface NoteWithCounts extends Note {
@@ -34,6 +35,7 @@ export interface Post {
   publish_method?: 'api' | 'nostrmq' | 'direct';
   signed_event?: string; // JSON string of pre-signed Nostr event
   signed_at?: string; // When the event was signed
+  master_account_npub?: string; // Master account that owns this post
 }
 
 // Legacy interface for backward compatibility during transition
@@ -84,4 +86,55 @@ export interface NostrAccount {
   relays?: string; // comma-separated list of relay URLs for direct publishing
   is_active: boolean;
   created_at: string;
+}
+
+// Master Account (authenticated user)
+export interface MasterAccount {
+  npub: string;
+  display_name?: string;
+  created_at: string;
+  last_login?: string;
+  settings?: string; // JSON string
+  status: 'active' | 'inactive';
+}
+
+// Signing Key (renamed from NostrAccount for clarity)
+export interface SigningKey {
+  id?: number;
+  name: string;
+  npub: string;
+  master_account_npub?: string;
+  nickname?: string;
+  is_default?: boolean;
+  keychain_ref?: string;
+  api_endpoint?: string;
+  publish_method: 'api' | 'nostrmq' | 'direct';
+  nostrmq_target?: string;
+  relays?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+// Session for authentication
+export interface Session {
+  id: string;
+  master_account_npub: string;
+  token_hash: string;
+  expires_at: string;
+  created_at: string;
+  last_activity: string;
+  user_agent?: string;
+  ip_address?: string;
+}
+
+// Audit log entry
+export interface AuditLog {
+  id?: number;
+  master_account_npub?: string;
+  action: string;
+  entity_type?: string;
+  entity_id?: string;
+  details?: string;
+  timestamp: string;
+  ip_address?: string;
 }

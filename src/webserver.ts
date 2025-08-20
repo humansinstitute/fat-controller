@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -11,6 +12,7 @@ import StatsSchedulerService from './services/stats-scheduler.service.js';
 import StatsCollectionService from './services/stats-collection.service.js';
 import BackgroundJobService from './services/background-jobs.service.js';
 import SigningQueueService from './services/signing-queue.service.js';
+import { AuthService } from './services/auth.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,6 +24,7 @@ export class WebServer {
   private scheduler: PostScheduler | null = null;
   private statsScheduler: StatsSchedulerService | null = null;
   private signingQueue: SigningQueueService | null = null;
+  private authService: AuthService;
 
   constructor(port: number = 3001, scheduler?: PostScheduler, statsScheduler?: StatsSchedulerService, signingQueue?: SigningQueueService) {
     this.app = express();
@@ -30,6 +33,7 @@ export class WebServer {
     this.scheduler = scheduler || null;
     this.statsScheduler = statsScheduler || null;
     this.signingQueue = signingQueue || null;
+    this.authService = new AuthService(this.db);
     this.setupMiddleware();
     this.setupRoutes();
   }
@@ -37,6 +41,45 @@ export class WebServer {
   private setupMiddleware() {
     this.app.use(cors());
     this.app.use(express.json());
+    this.app.use(cookieParser());
+    
+    // Authentication check middleware for protected HTML files
+    this.app.use(async (req, res, next) => {
+      // Allow access to index.html (login page) and API endpoints
+      if (req.path === '/' || req.path === '/index.html' || req.path.startsWith('/api/')) {
+        return next();
+      }
+      
+      // Check if requesting an HTML file (other than index.html)
+      if (req.path.endsWith('.html')) {
+        // Check for session token in cookie or authorization header
+        let token: string | undefined;
+        
+        // Check cookie first (using cookie-parser)
+        token = (req as any).cookies?.auth_token;
+        
+        // If no cookie, check authorization header
+        if (!token) {
+          token = req.headers.authorization?.split(' ')[1];
+        }
+        
+        // Validate session
+        if (token) {
+          const session = await this.authService.validateSession(token);
+          if (session) {
+            return next(); // Valid session, allow access
+          }
+        }
+        
+        // No valid session, redirect to login
+        return res.redirect('/');
+      }
+      
+      // For all other static files (CSS, JS, images), allow access
+      next();
+    });
+    
+    // Serve static files after authentication check
     this.app.use(express.static(path.join(__dirname, '../public')));
   }
 
@@ -672,12 +715,29 @@ export class WebServer {
 
     // Account management endpoints
     
-    // Get all accounts
+    // Get all accounts (now requires authentication and returns only user's signing keys)
     this.app.get('/api/accounts', async (req, res) => {
       try {
-        const accounts = await this.db.getAccounts();
+        // Check for authentication token
+        const token = req.headers.authorization?.split(' ')[1] || (req as any).cookies?.auth_token;
+        
+        let signingKeys: any[] = [];
+        
+        if (token) {
+          // If authenticated, get signing keys for the master account
+          const session = await this.authService.validateSession(token);
+          if (session) {
+            signingKeys = await this.db.getSigningKeysByMaster(session.master_account_npub);
+          }
+        } else {
+          // For backward compatibility, if no auth token, try to get all accounts
+          // This maintains compatibility with existing CLI/scripts
+          // But web UI should always send auth token
+          signingKeys = await this.db.getAccounts();
+        }
+        
         // Convert hex nostrmq_target back to npub for display
-        const accountsWithNpub = accounts.map(account => {
+        const accountsWithNpub = signingKeys.map(account => {
           if (account.publish_method === 'nostrmq' && account.nostrmq_target) {
             try {
               const npubTarget = nip19.npubEncode(account.nostrmq_target);
@@ -693,14 +753,26 @@ export class WebServer {
         });
         res.json(accountsWithNpub);
       } catch (error) {
+        console.error('Error fetching accounts:', error);
         res.status(500).json({ error: 'Failed to fetch accounts' });
       }
     });
 
-    // Add new account
+    // Add new account (now links to authenticated master account)
     this.app.post('/api/accounts', async (req, res) => {
       try {
         const { name, npub, nsec, publishMethod, apiEndpoint, nostrmqTarget, relays } = req.body;
+        
+        // Get the authenticated master account if available
+        const token = req.headers.authorization?.split(' ')[1] || (req as any).cookies?.auth_token;
+        let masterAccountNpub: string | undefined;
+        
+        if (token) {
+          const session = await this.authService.validateSession(token);
+          if (session) {
+            masterAccountNpub = session.master_account_npub;
+          }
+        }
         
         console.log('Adding new account:', { 
           name, 
@@ -709,7 +781,8 @@ export class WebServer {
           publishMethod, 
           apiEndpoint, 
           nostrmqTarget: nostrmqTarget?.substring(0, 20) + '...',
-          relays: relays?.split(',').length || 0 
+          relays: relays?.split(',').length || 0,
+          masterAccountNpub: masterAccountNpub?.substring(0, 20) + '...'
         });
         
         if (!name || !npub || !publishMethod) {
@@ -763,8 +836,8 @@ export class WebServer {
           }
         }
         
-        // Add account to database first to get the ID
-        const id = await this.db.addAccount(name, npub, (publishMethod as 'api' | 'nostrmq' | 'direct') || 'direct', apiEndpoint, convertedTarget, undefined, relays, undefined);
+        // Add account to database first to get the ID (now with master account linking)
+        const id = await this.db.addAccount(name, npub, (publishMethod as 'api' | 'nostrmq' | 'direct') || 'direct', apiEndpoint, convertedTarget, undefined, relays, undefined, masterAccountNpub);
         
         // Now store the key in keychain if we have one (required for direct publishing)
         if (nsec && id) {
@@ -1598,6 +1671,216 @@ export class WebServer {
       } catch (error) {
         res.status(500).json({ error: 'Failed to delete account' });
       }
+    });
+
+    // ===== AUTHENTICATION ENDPOINTS =====
+    
+    // Generate authentication challenge
+    this.app.post('/api/auth/challenge', (req, res) => {
+      const challenge = this.authService.generateChallenge();
+      res.json({ challenge });
+    });
+
+    // Verify signed challenge and create session
+    this.app.post('/api/auth/verify', async (req, res) => {
+      try {
+        const { signedEvent, challenge } = req.body;
+        
+        if (!signedEvent || !challenge) {
+          return res.status(400).json({ error: 'Signed event and challenge are required' });
+        }
+
+        // Verify the signed event
+        const verification = await this.authService.verifySignedEvent(signedEvent, challenge);
+        
+        if (!verification.valid || !verification.npub) {
+          return res.status(401).json({ error: 'Invalid signature or challenge' });
+        }
+
+        // Get or create master account
+        const masterAccount = await this.authService.getOrCreateMasterAccount(
+          verification.npub,
+          signedEvent.content // Use content as display name if available
+        );
+
+        // Create session
+        const token = await this.authService.createSession(
+          verification.npub,
+          req.headers['user-agent'],
+          req.ip
+        );
+
+        // Log authentication
+        await this.authService.logAudit(
+          verification.npub,
+          'LOGIN',
+          'master_account',
+          verification.npub,
+          { method: 'NIP-07' },
+          req.ip
+        );
+
+        // Set secure HTTP-only cookie for session
+        res.cookie('auth_token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+          maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        });
+
+        res.json({
+          token,
+          npub: verification.npub,
+          displayName: masterAccount.display_name
+        });
+      } catch (error) {
+        console.error('Error during authentication:', error);
+        res.status(500).json({ error: 'Authentication failed' });
+      }
+    });
+
+    // Logout
+    this.app.post('/api/auth/logout', async (req, res) => {
+      try {
+        const token = req.headers.authorization?.split(' ')[1] || (req as any).cookies?.auth_token;
+        
+        if (token) {
+          await this.authService.logout(token);
+        }
+        
+        // Clear the auth cookie
+        res.clearCookie('auth_token');
+        
+        res.json({ message: 'Logged out successfully' });
+      } catch (error) {
+        res.status(500).json({ error: 'Logout failed' });
+      }
+    });
+
+    // Get current session info
+    this.app.get('/api/auth/session', async (req, res) => {
+      try {
+        const token = req.headers.authorization?.split(' ')[1];
+        
+        if (!token) {
+          return res.status(401).json({ error: 'No token provided' });
+        }
+
+        const session = await this.authService.validateSession(token);
+        
+        if (!session) {
+          return res.status(401).json({ error: 'Invalid or expired session' });
+        }
+
+        const masterAccount = await this.db.getMasterAccount(session.master_account_npub);
+        
+        res.json({
+          npub: session.master_account_npub,
+          displayName: masterAccount?.display_name,
+          lastActivity: session.last_activity
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to get session info' });
+      }
+    });
+
+    // ===== PROTECTED ENDPOINTS =====
+    
+    // Authentication middleware
+    const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const token = req.headers.authorization?.split(' ')[1];
+      
+      if (!token) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      
+      const session = await this.authService.validateSession(token);
+      if (!session) {
+        return res.status(401).json({ error: 'Invalid or expired session' });
+      }
+      
+      // Add master account npub to request for use in route handlers
+      (req as any).masterAccountNpub = session.master_account_npub;
+      next();
+    };
+
+    // Get master account profile
+    this.app.get('/api/master/profile', requireAuth, async (req, res) => {
+      try {
+        const npub = (req as any).masterAccountNpub;
+        const masterAccount = await this.db.getMasterAccount(npub);
+        
+        if (!masterAccount) {
+          return res.status(404).json({ error: 'Master account not found' });
+        }
+        
+        const signingKeys = await this.db.getSigningKeysByMaster(npub);
+        
+        res.json({
+          ...masterAccount,
+          signingKeysCount: signingKeys.length
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to get profile' });
+      }
+    });
+
+    // Update master account settings
+    this.app.put('/api/master/settings', requireAuth, async (req, res) => {
+      try {
+        const npub = (req as any).masterAccountNpub;
+        const { displayName, settings } = req.body;
+        
+        // Update the master account
+        // Note: This is a simplified version - you'd need to add an update method to the database
+        await this.db.run(
+          'UPDATE master_accounts SET display_name = ?, settings = ? WHERE npub = ?',
+          [displayName || null, settings ? JSON.stringify(settings) : null, npub]
+        );
+        
+        await this.authService.logAudit(
+          npub,
+          'UPDATE_SETTINGS',
+          'master_account',
+          npub,
+          { displayName, settings },
+          req.ip
+        );
+        
+        res.json({ message: 'Settings updated successfully' });
+      } catch (error) {
+        res.status(500).json({ error: 'Failed to update settings' });
+      }
+    });
+
+    // Signing Keys Management (protected endpoints)
+    this.app.get('/api/signing-keys', requireAuth, async (req, res) => {
+      try {
+        const npub = (req as any).masterAccountNpub;
+        const signingKeys = await this.db.getSigningKeysByMaster(npub);
+        
+        res.json(signingKeys);
+      } catch (error) {
+        console.error('Error fetching signing keys:', error);
+        res.status(500).json({ error: 'Failed to fetch signing keys' });
+      }
+    });
+
+    // Root path - redirect based on authentication status
+    this.app.get('/', async (req, res) => {
+      // Check if user is authenticated
+      const token = (req as any).cookies?.auth_token || req.headers.authorization?.split(' ')[1];
+      
+      if (token) {
+        const session = await this.authService.validateSession(token);
+        if (session) {
+          // User is authenticated, redirect to main app
+          return res.redirect('/notes.html');
+        }
+      }
+      
+      // User is not authenticated, serve login page
+      res.sendFile(path.join(__dirname, '../public/index.html'));
     });
 
     // Health check

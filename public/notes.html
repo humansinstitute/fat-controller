@@ -91,6 +91,21 @@
             font-size: 12px;
             margin-left: 10px;
         }
+
+        .logout-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .logout-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
         
         h1 {
             font-size: 2em;
@@ -1459,6 +1474,7 @@
                     <option value="">Loading accounts...</option>
                 </select>
                 <div class="account-info" id="headerAccountInfo">Select an account</div>
+                <button class="logout-button" onclick="logout()">🚪 Logout</button>
             </div>
         </header>
         
@@ -2143,9 +2159,52 @@
         }
         
         // Load Accounts
+        // Helper function for authenticated API requests
+        async function authenticatedFetch(url, options = {}) {
+            // Get token from localStorage if available (for backward compatibility)
+            const token = localStorage.getItem('auth_token');
+            
+            const headers = {
+                ...options.headers
+            };
+            
+            // Add authorization header if token exists
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            
+            // Cookie-based auth will be sent automatically
+            return fetch(url, {
+                ...options,
+                headers,
+                credentials: 'same-origin' // Ensure cookies are sent
+            });
+        }
+
+        // Logout function
+        async function logout() {
+            try {
+                // Call logout API to invalidate session
+                await authenticatedFetch('/api/auth/logout', {
+                    method: 'POST'
+                });
+            } catch (error) {
+                console.error('Error during logout:', error);
+                // Continue with logout even if API call fails
+            } finally {
+                // Clear local storage
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user_npub');
+                localStorage.removeItem('user_display_name');
+                
+                // Redirect to login page
+                window.location.href = '/';
+            }
+        }
+        
         async function loadAccounts() {
             try {
-                const response = await fetch('/api/accounts');
+                const response = await authenticatedFetch('/api/accounts');
                 accounts = await response.json();
                 
                 // Find active account
@@ -4736,7 +4795,7 @@
             }
             
             try {
-                const response = await fetch('/api/accounts', {
+                const response = await authenticatedFetch('/api/accounts', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
