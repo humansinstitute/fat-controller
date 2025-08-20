@@ -53,4 +53,5 @@ Fat Controller is a Nostr post scheduler that automatically publishes posts to t
 - `src/index.ts` - Entry point, handles daemon/web/CLI mode selection
 - `src/database/db.ts` - Database operations and migrations
 - `src/publisher.ts` - Publishing logic for all methods
-- `public/index.html` - Single-page web UI with account and post management
+- `public/index.html` - Login page for Nostr authentication
+- `public/notes.html` - Main application UI with account and post management

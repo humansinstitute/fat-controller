@@ -17,13 +17,17 @@
     "pm2:logs:dev": "pm2 logs fcdev",
     "pm2:logs:prod": "pm2 logs fcprod",
     "pm2:delete": "pm2 delete fcdev fcprod || true",
-    "pm2:status": "pm2 status"
+    "pm2:status": "pm2 status",
+    "migrate:prod": "node scripts/production-migration.js",
+    "verify:migration": "node scripts/verify-migration.js"
   },
   "dependencies": {
     "@nostr-dev-kit/ndk": "^2.14.33",
+    "@types/cookie-parser": "^1.4.9",
     "@types/ws": "^8.18.1",
     "bolt11": "^1.4.1",
     "commander": "^11.1.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

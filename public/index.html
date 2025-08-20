@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Fat Controller</title>
+    <title>The Fat Controller - Login</title>
     <style>
         * {
             margin: 0;
@@ -15,966 +15,362 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #0f0f23 100%);
             min-height: 100vh;
-            padding: 20px;
-            margin: 0;
             display: flex;
-            flex-direction: column;
-        }
-        
-        .container {
-            width: 90%;
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: calc(100vh - 40px);
-        }
-
-        @media (min-width: 768px) {
-            .container {
-                width: 80%;
-            }
-        }
-
-        @media (max-width: 767px) {
-            .container {
-                width: 95%;
-                margin: 0 auto;
-            }
-            
-            body {
-                padding: 10px;
-            }
-        }
-        
-        header {
-            background: linear-gradient(135deg, #2d2d50 0%, #1a1a2e 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .header-account-switcher {
-            margin-top: 20px;
-            display: flex;
-            justify-content: center;
             align-items: center;
-            gap: 15px;
-        }
-
-        .header-account-switcher label {
-            color: white;
-            opacity: 0.9;
-            font-weight: 500;
-            margin-bottom: 0;
-        }
-
-        .header-account-switcher select {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: #333;
-            padding: 8px 12px;
-            border-radius: 5px;
-            font-size: 14px;
-            min-width: 200px;
-        }
-
-        .header-account-switcher .account-info {
-            color: white;
-            opacity: 0.8;
-            font-size: 12px;
-            margin-left: 10px;
+            justify-content: center;
+            padding: 20px;
         }
         
-        h1 {
-            font-size: 2em;
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 60px 40px;
+            text-align: center;
+            width: 100%;
+            max-width: 450px;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #1a1a2e;
             margin-bottom: 10px;
         }
         
-        .subtitle {
-            opacity: 0.9;
-            font-size: 0.9em;
+        .tagline {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1rem;
         }
         
-        main {
-            padding: 30px;
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .form-section {
-            background: #f7f7f7;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-        }
-        
-        h2 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 1.3em;
-        }
-        
-        .form-group {
-            margin-bottom: 15px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            color: #555;
-            font-weight: 500;
-        }
-        
-        textarea, input[type="datetime-local"], select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 14px;
-            font-family: inherit;
-        }
-        
-        textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-        
-        .schedule-options {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .schedule-option {
-            flex: 1;
-        }
-        
-        button {
-            background: linear-gradient(135deg, #1a1a2e 0%, #0f0f23 100%);
+        .login-button {
+            background: linear-gradient(45deg, #ff6b35, #f7931e);
             color: white;
             border: none;
-            padding: 12px 30px;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(26, 26, 46, 0.4);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        .posts-section {
-            margin-top: 30px;
-        }
-        
-        .posts-grid {
-            display: grid;
-            gap: 15px;
-        }
-        
-        .post-card {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            transition: box-shadow 0.2s;
-        }
-        
-        .post-card:hover {
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        
-        .post-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: start;
-            margin-bottom: 10px;
-        }
-        
-        .post-status {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
+            border-radius: 15px;
+            padding: 20px 30px;
+            font-size: 1.2rem;
             font-weight: 600;
-            text-transform: uppercase;
-        }
-        
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
-        }
-        
-        .status-published {
-            background: #d4edda;
-            color: #155724;
-        }
-        
-        .status-failed {
-            background: #f8d7da;
-            color: #721c24;
-        }
-        
-        .post-time {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-        
-        .post-content {
-            color: #333;
-            line-height: 1.5;
-            word-wrap: break-word;
-        }
-        
-        .post-actions {
-            margin-top: 10px;
+            cursor: pointer;
             display: flex;
-            gap: 10px;
-        }
-        
-        .delete-btn {
-            background: #dc3545;
-            padding: 6px 12px;
-            font-size: 14px;
-        }
-        
-        .delete-btn:hover {
-            background: #c82333;
-            box-shadow: 0 3px 10px rgba(220, 53, 69, 0.3);
-        }
-        
-        .publish-btn {
-            background: #28a745;
-            padding: 6px 12px;
-            font-size: 14px;
-        }
-        
-        .publish-btn:hover {
-            background: #218838;
-            box-shadow: 0 3px 10px rgba(40, 167, 69, 0.3);
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px;
-            color: #999;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
             align-items: center;
-            flex: 1;
-            min-height: 200px;
+            justify-content: center;
+            gap: 15px;
+            width: 100%;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(255, 107, 53, 0.3);
         }
         
-        .batch-hint {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
-            padding: 10px 15px;
-            margin-top: 15px;
-            font-size: 14px;
-            color: #1565c0;
+        .login-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(255, 107, 53, 0.4);
+        }
+        
+        .login-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .nostr-logo {
+            width: 24px;
+            height: 24px;
+            filter: brightness(0) invert(1);
+        }
+        
+        .extensions-hint {
+            margin-top: 30px;
+            color: #999;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .extensions-hint a {
+            color: #ff6b35;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .extensions-hint a:hover {
+            text-decoration: underline;
+        }
+        
+        .error-message {
+            background: #fee;
+            color: #d00;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
         }
         
         .loading {
-            text-align: center;
-            color: #666;
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ff6b35;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .auth-flow {
+            margin-top: 30px;
             padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .auth-step {
+            margin: 10px 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .auth-step.active {
+            color: #ff6b35;
+            font-weight: 600;
+        }
+
+        .auth-step.complete {
+            color: #28a745;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>⚡ The Fat Controller</h1>
-            <div class="subtitle">Managing your traffic on the freedom network</div>
-            
-            <div class="header-account-switcher">
-                <label for="headerSelectedAccount">Active Account:</label>
-                <select id="headerSelectedAccount" name="headerSelectedAccount">
-                    <option value="">Loading accounts...</option>
-                </select>
-                <div class="account-info" id="headerAccountInfo">Select an account</div>
-            </div>
-        </header>
+    <div class="login-container" id="loginContainer">
+        <h1 class="logo">🚂 Fat Controller</h1>
+        <p class="tagline">Schedule posts to Nostr</p>
         
-        <main>
-            <!-- Account Management Section -->
-            <div class="form-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2>Account Management</h2>
-                    <button type="button" id="addAccountBtn" style="padding: 8px 16px; font-size: 14px;">+ Add Account</button>
-                </div>
-                
-                <div style="font-size: 14px; color: #666;">
-                    <span id="accountInfo">Account details will appear here</span>
-                </div>
-            </div>
+        <button id="nostr-login" class="login-button">
+            <svg class="nostr-logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <!-- Simplified Nostr logo -->
+                <circle cx="50" cy="50" r="45" fill="currentColor"/>
+                <path d="M30 35 L50 60 L70 35" stroke="white" stroke-width="3" fill="none"/>
+                <circle cx="35" cy="45" r="3" fill="white"/>
+                <circle cx="65" cy="45" r="3" fill="white"/>
+            </svg>
+            <span id="login-text">Login with Nostr</span>
+        </button>
+        
+        <div class="extensions-hint">
+            Requires a Nostr signing extension like 
+            <a href="https://getalby.com" target="_blank" rel="noopener">Alby</a> or 
+            <a href="https://github.com/fiatjaf/nos2x" target="_blank" rel="noopener">nos2x</a>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner"></div>
+            <p>Authenticating...</p>
+        </div>
 
-            <div class="form-section">
-                <h2>Create New Post</h2>
-                <form id="postForm">
-                    <div class="form-group">
-                        <label for="content">Post Content</label>
-                        <textarea id="content" name="content" placeholder="What's on your mind?" required></textarea>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="scheduleType">Posting Option</label>
-                        <select id="scheduleType" name="scheduleType" required>
-                            <option value="immediate">Post Immediately (no repeat)</option>
-                            <option value="immediate-repeat">Post Immediately (with repeats)</option>
-                            <option value="scheduled">Post on Schedule (no repeat)</option>
-                            <option value="scheduled-repeat">Post on Schedule (with repeats)</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="postPublishMethod">Publishing Method</label>
-                        <select id="postPublishMethod" name="postPublishMethod" required>
-                            <option value="direct" selected>Direct to Relays</option>
-                            <option value="api">Direct API</option>
-                            <option value="nostrmq">NostrMQ</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group" id="scheduleTimeGroup" style="display: none;">
-                        <label for="scheduledFor">Schedule For</label>
-                        <input type="datetime-local" id="scheduledFor" name="scheduledFor">
-                    </div>
-                    
-                    <div class="form-group" id="repeatCountGroup" style="display: none;">
-                        <label for="intervalHours">Repeat Every (hours)</label>
-                        <input type="number" id="intervalHours" name="intervalHours" 
-                               min="1" max="168" value="3" placeholder="e.g., 3" style="margin-bottom: 10px;">
-                        
-                        <label for="repeatCount">Number of Repeats</label>
-                        <select id="repeatCount" name="repeatCount">
-                            <option value="8">8 times (1 day @ 3hr intervals)</option>
-                            <option value="16">16 times (2 days @ 3hr intervals)</option>
-                            <option value="56">56 times (7 days @ 3hr intervals)</option>
-                            <option value="custom">Custom</option>
-                        </select>
-                        <input type="number" id="customRepeatCount" name="customRepeatCount" 
-                               min="2" max="100" placeholder="Enter number" style="display: none; margin-top: 10px;">
-                    </div>
-                    
-                    <button type="submit">Create Post</button>
-                </form>
-                
-                <div class="batch-hint" id="scheduleHint" style="display: none;">
-                    💡 <span id="hintText"></span>
-                </div>
-            </div>
-            
-            <div class="posts-section">
-                <h2>Scheduled Posts</h2>
-                <div id="postsContainer" class="loading">Loading posts...</div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Add Account Modal -->
-    <div id="addAccountModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
-            <h3 style="margin-bottom: 20px;">Add New Nostr Account</h3>
-            <form id="addAccountForm">
-                <div class="form-group">
-                    <label for="accountName">Account Name</label>
-                    <input type="text" id="accountName" name="accountName" placeholder="e.g., Personal, Work, Alt" required>
-                </div>
-                
-                <div class="form-group" id="npubGroup" style="display: none;">
-                    <label for="accountNpub">Nostr Public Key (npub)</label>
-                    <input type="text" id="accountNpub" name="accountNpub" placeholder="npub1...">
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        📝 Required for API and NostrMQ methods (remote signers)
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="publishMethod">Publishing Method</label>
-                    <select id="publishMethod" name="publishMethod" required>
-                        <option value="direct" selected>Direct to Relays (enter nsec)</option>
-                        <option value="api">Direct API</option>
-                        <option value="nostrmq">NostrMQ</option>
-                    </select>
-                </div>
-                
-                <div class="form-group" id="apiEndpointGroup" style="display: none;">
-                    <label for="accountApiEndpoint">API Endpoint (optional)</label>
-                    <input type="url" id="accountApiEndpoint" name="accountApiEndpoint" placeholder="http://localhost:3000/post/note">
-                </div>
-                
-                <div class="form-group" id="nostrmqTargetGroup" style="display: none;">
-                    <label for="nostrmqTarget">NostrMQ Target (npub)</label>
-                    <input type="text" id="nostrmqTarget" name="nostrmqTarget" placeholder="npub1... of NostrMQ target">
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        💡 Enter the npub of the NostrMQ service that will handle your posts (will be auto-converted to hex)
-                    </div>
-                </div>
-                
-                <div class="form-group" id="directKeyGroup">
-                    <label for="accountNsec">Private Key (nsec)</label>
-                    <input type="password" id="accountNsec" name="accountNsec" placeholder="nsec1..." required>
-                    <div id="nsecValidation" style="font-size: 12px; margin-top: 5px; display: none;">
-                        ✅ Valid key - npub automatically derived
-                    </div>
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        🔐 Your private key will be stored securely in macOS Keychain when available
-                    </div>
-                </div>
-                
-                <div class="form-group" id="relaysGroup">
-                    <label for="relays">Relay URLs (comma-separated)</label>
-                    <textarea id="relays" name="relays" placeholder="wss://relay.damus.io, wss://nos.lol, wss://relay.nostr.band" rows="3"></textarea>
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        🌐 Leave empty to use default relays
-                    </div>
-                </div>
-                
-                <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-                    <button type="button" id="cancelAddAccount" style="background: #6c757d;">Cancel</button>
-                    <button type="submit">Add Account</button>
-                </div>
-            </form>
+        <div class="auth-flow" id="authFlow">
+            <div class="auth-step" id="step1">1. Requesting challenge...</div>
+            <div class="auth-step" id="step2">2. Getting public key...</div>
+            <div class="auth-step" id="step3">3. Signing authentication event...</div>
+            <div class="auth-step" id="step4">4. Verifying signature...</div>
+            <div class="auth-step" id="step5">5. Creating session...</div>
         </div>
     </div>
-    
-    <script>
-        // Redirect to notes.html by default
-        if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
-            window.location.href = '/notes.html';
-        }
-        
-        let accounts = [];
-        let selectedAccountId = null;
-        
-        // Set default datetime to now + 1 hour
-        const now = new Date();
-        now.setHours(now.getHours() + 1);
-        document.getElementById('scheduledFor').value = now.toISOString().slice(0, 16);
-        
-        // Load accounts
-        async function loadAccounts() {
-            try {
-                const response = await fetch('/api/accounts');
-                accounts = await response.json();
-                
-                const headerSelect = document.getElementById('headerSelectedAccount');
-                headerSelect.innerHTML = '';
-                
-                if (accounts.length === 0) {
-                    headerSelect.innerHTML = '<option value="">No accounts - please add one</option>';
-                    document.getElementById('accountInfo').textContent = 'No accounts configured';
-                    document.getElementById('headerAccountInfo').textContent = 'No accounts';
-                } else {
-                    accounts.forEach(account => {
-                        const option = document.createElement('option');
-                        option.value = account.id;
-                        option.textContent = account.name;
-                        if (account.is_active) {
-                            option.selected = true;
-                            selectedAccountId = account.id;
-                        }
-                        headerSelect.appendChild(option);
-                    });
-                    updateAccountInfo();
-                }
-            } catch (error) {
-                console.error('Error loading accounts:', error);
-                document.getElementById('headerSelectedAccount').innerHTML = '<option value="">Error loading accounts</option>';
-                document.getElementById('headerAccountInfo').textContent = 'Error loading';
-            }
-        }
-        
-        // Update account info display
-        function updateAccountInfo() {
-            const account = accounts.find(a => a.id == selectedAccountId);
-            if (account) {
-                let methodInfo;
-                if (account.publish_method === 'nostrmq') {
-                    methodInfo = `NostrMQ: ${(account.nostrmq_target_display || account.nostrmq_target)?.substring(0, 20)}...`;
-                } else if (account.publish_method === 'direct') {
-                    const relayCount = account.relays ? account.relays.split(',').length : 0;
-                    methodInfo = `Direct: ${relayCount > 0 ? relayCount + ' relay(s)' : 'default relays'}`;
-                } else {
-                    methodInfo = `API: ${account.api_endpoint || 'default'}`;
-                }
-                    
-                const accountDetails = `NPub: ${account.npub.substring(0, 20)}... | ${methodInfo}`;
-                document.getElementById('accountInfo').innerHTML = accountDetails;
-                document.getElementById('headerAccountInfo').textContent = `${account.npub.substring(0, 12)}... | ${account.publish_method.toUpperCase()}`;
-            }
-        }
-        
-        // Handle account selection change
-        document.getElementById('headerSelectedAccount').addEventListener('change', async (e) => {
-            const newAccountId = parseInt(e.target.value);
-            console.log('Account changed from', selectedAccountId, 'to', newAccountId);
-            
-            if (newAccountId && !isNaN(newAccountId)) {
-                selectedAccountId = newAccountId;
-                try {
-                    await fetch(`/api/accounts/${selectedAccountId}/activate`, { method: 'POST' });
-                    updateAccountInfo();
-                    console.log('About to reload posts for account:', selectedAccountId);
-                    await loadPosts(); // Reload posts for the selected account
-                } catch (error) {
-                    console.error('Error activating account:', error);
-                }
-            } else {
-                selectedAccountId = null;
-                await loadPosts(); // Load all posts if no account selected
-            }
-        });
-        
-        // Add account modal handlers
-        document.getElementById('addAccountBtn').addEventListener('click', () => {
-            document.getElementById('addAccountModal').style.display = 'block';
-            // Initialize form with direct method selected
-            document.getElementById('publishMethod').value = 'direct';
-            document.getElementById('publishMethod').dispatchEvent(new Event('change'));
-        });
-        
-        document.getElementById('cancelAddAccount').addEventListener('click', () => {
-            document.getElementById('addAccountModal').style.display = 'none';
-            document.getElementById('addAccountForm').reset();
-            // Reset form visibility to direct method default
-            document.getElementById('publishMethod').value = 'direct';
-            document.getElementById('npubGroup').style.display = 'none';
-            document.getElementById('apiEndpointGroup').style.display = 'none';
-            document.getElementById('nostrmqTargetGroup').style.display = 'none';
-            document.getElementById('directKeyGroup').style.display = 'block';
-            document.getElementById('relaysGroup').style.display = 'block';
-            document.getElementById('accountNpub').required = false;
-        });
-        
-        // Handle publish method selection
-        document.getElementById('publishMethod').addEventListener('change', (e) => {
-            const method = e.target.value;
-            const npubGroup = document.getElementById('npubGroup');
-            const apiGroup = document.getElementById('apiEndpointGroup');
-            const nostrmqGroup = document.getElementById('nostrmqTargetGroup');
-            const directKeyGroup = document.getElementById('directKeyGroup');
-            const relaysGroup = document.getElementById('relaysGroup');
-            
-            // Hide all groups first
-            npubGroup.style.display = 'none';
-            apiGroup.style.display = 'none';
-            nostrmqGroup.style.display = 'none';
-            directKeyGroup.style.display = 'none';
-            relaysGroup.style.display = 'none';
-            
-            // Show relevant groups based on method
-            if (method === 'nostrmq') {
-                npubGroup.style.display = 'block';
-                nostrmqGroup.style.display = 'block';
-                document.getElementById('accountNpub').required = true;
-            } else if (method === 'direct') {
-                directKeyGroup.style.display = 'block';
-                relaysGroup.style.display = 'block';
-                document.getElementById('accountNpub').required = false;
-            } else {
-                npubGroup.style.display = 'block';
-                apiGroup.style.display = 'block';
-                document.getElementById('accountNpub').required = true;
-            }
-        });
-        
-        // Auto-derive npub from nsec for direct method
-        document.getElementById('accountNsec').addEventListener('input', (e) => {
-            const nsec = e.target.value.trim();
-            const publishMethod = document.getElementById('publishMethod').value;
-            const validation = document.getElementById('nsecValidation');
-            
-            // Hide validation message initially
-            validation.style.display = 'none';
-            
-            if (publishMethod === 'direct' && nsec) {
-                try {
-                    // Validate nsec format
-                    if (!nsec.startsWith('nsec1') || nsec.length < 20) {
-                        return;
-                    }
-                    
-                    // Derive npub from nsec using nostr-tools
-                    const { nip19, getPublicKey } = window.NostrTools;
-                    const { type, data } = nip19.decode(nsec);
-                    
-                    if (type === 'nsec') {
-                        const pubkey = getPublicKey(data);
-                        const npub = nip19.npubEncode(pubkey);
-                        
-                        // Set the derived npub (for internal use, not visible to user for direct method)
-                        document.getElementById('accountNpub').value = npub;
-                        
-                        // Show success validation
-                        validation.style.display = 'block';
-                        validation.style.color = '#28a745';
-                        
-                        console.log('Auto-derived npub from nsec:', npub);
-                    }
-                } catch (error) {
-                    console.log('Invalid nsec format');
-                    document.getElementById('accountNpub').value = '';
-                    validation.style.display = 'none';
-                }
-            }
-        });
 
-        // Handle add account form submission
-        document.getElementById('addAccountForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+    <script>
+        class NostrAuth {
+            constructor() {
+                this.loginButton = document.getElementById('nostr-login');
+                this.loginText = document.getElementById('login-text');
+                this.errorMessage = document.getElementById('errorMessage');
+                this.loadingIndicator = document.getElementById('loadingIndicator');
+                this.authFlow = document.getElementById('authFlow');
+                
+                this.loginButton.addEventListener('click', () => this.login());
+                
+                // Check if user is already logged in
+                this.checkExistingSession();
+            }
             
-            const formData = new FormData(e.target);
-            const publishMethod = formData.get('publishMethod');
-            let npub = formData.get('accountNpub');
-            
-            // For direct method, ensure npub is derived from nsec
-            if (publishMethod === 'direct') {
-                const nsec = formData.get('accountNsec');
-                if (nsec && nsec.startsWith('nsec1')) {
+            async checkExistingSession() {
+                const token = localStorage.getItem('auth_token');
+                if (token) {
                     try {
-                        const { nip19, getPublicKey } = window.NostrTools;
-                        const { type, data } = nip19.decode(nsec);
-                        if (type === 'nsec') {
-                            const pubkey = getPublicKey(data);
-                            npub = nip19.npubEncode(pubkey);
+                        const response = await fetch('/api/auth/session', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            this.redirectToMainApp(data);
+                            return;
+                        } else {
+                            // Invalid token, remove it
+                            localStorage.removeItem('auth_token');
                         }
                     } catch (error) {
-                        alert('Invalid nsec format');
-                        return;
+                        console.error('Error checking session:', error);
                     }
                 }
             }
             
-            try {
-                const response = await fetch('/api/accounts', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: formData.get('accountName'),
-                        npub: npub,
-                        nsec: publishMethod === 'direct' ? formData.get('accountNsec') || null : null,
-                        publishMethod: publishMethod,
-                        apiEndpoint: publishMethod === 'api' ? formData.get('accountApiEndpoint') || null : null,
-                        nostrmqTarget: publishMethod === 'nostrmq' ? formData.get('nostrmqTarget') || null : null,
-                        relays: publishMethod === 'direct' ? formData.get('relays') || null : null
-                    })
+            checkNostrExtension() {
+                if (typeof window.nostr === 'undefined') {
+                    this.showError('Please install a Nostr signing extension like Alby or nos2x');
+                    return false;
+                }
+                return true;
+            }
+            
+            showError(message) {
+                this.errorMessage.textContent = message;
+                this.errorMessage.style.display = 'block';
+                this.hideLoading();
+            }
+            
+            hideError() {
+                this.errorMessage.style.display = 'none';
+            }
+            
+            showLoading() {
+                this.loginButton.disabled = true;
+                this.loginText.textContent = 'Authenticating...';
+                this.loadingIndicator.style.display = 'block';
+                this.authFlow.style.display = 'block';
+            }
+            
+            hideLoading() {
+                this.loginButton.disabled = false;
+                this.loginText.textContent = 'Login with Nostr';
+                this.loadingIndicator.style.display = 'none';
+                this.authFlow.style.display = 'none';
+                this.resetSteps();
+            }
+
+            setStepActive(stepId) {
+                const step = document.getElementById(stepId);
+                step.classList.add('active');
+            }
+
+            setStepComplete(stepId) {
+                const step = document.getElementById(stepId);
+                step.classList.remove('active');
+                step.classList.add('complete');
+            }
+
+            resetSteps() {
+                ['step1', 'step2', 'step3', 'step4', 'step5'].forEach(stepId => {
+                    const step = document.getElementById(stepId);
+                    step.classList.remove('active', 'complete');
                 });
+            }
+            
+            async login() {
+                if (!this.checkNostrExtension()) return;
                 
-                if (response.ok) {
-                    document.getElementById('addAccountModal').style.display = 'none';
-                    document.getElementById('addAccountForm').reset();
-                    await loadAccounts();
-                    await loadPosts(); // Reload posts after adding account
-                    alert('Account added successfully!');
-                } else {
-                    const error = await response.json();
-                    alert(`Error: ${error.error}`);
-                }
-            } catch (error) {
-                alert('Error adding account: ' + error.message);
-            }
-        });
-        
-        // Handle schedule type changes
-        document.getElementById('scheduleType').addEventListener('change', (e) => {
-            const scheduleType = e.target.value;
-            const scheduleTimeGroup = document.getElementById('scheduleTimeGroup');
-            const repeatCountGroup = document.getElementById('repeatCountGroup');
-            const scheduleHint = document.getElementById('scheduleHint');
-            const hintText = document.getElementById('hintText');
-            const scheduledForInput = document.getElementById('scheduledFor');
-            
-            // Reset visibility
-            scheduleTimeGroup.style.display = 'none';
-            repeatCountGroup.style.display = 'none';
-            scheduleHint.style.display = 'none';
-            scheduledForInput.required = false;
-            
-            switch(scheduleType) {
-                case 'immediate':
-                    hintText.textContent = 'Post will be published immediately';
-                    scheduleHint.style.display = 'block';
-                    break;
-                    
-                case 'immediate-repeat':
-                    repeatCountGroup.style.display = 'block';
-                    updateRepeatHint();
-                    scheduleHint.style.display = 'block';
-                    break;
-                    
-                case 'scheduled':
-                    scheduleTimeGroup.style.display = 'block';
-                    scheduledForInput.required = true;
-                    hintText.textContent = 'Post will be published at the scheduled time';
-                    scheduleHint.style.display = 'block';
-                    break;
-                    
-                case 'scheduled-repeat':
-                    scheduleTimeGroup.style.display = 'block';
-                    repeatCountGroup.style.display = 'block';
-                    scheduledForInput.required = true;
-                    updateRepeatHint();
-                    scheduleHint.style.display = 'block';
-                    break;
-            }
-        });
-        
-        // Update hint text based on interval hours
-        function updateRepeatHint() {
-            const intervalHours = document.getElementById('intervalHours').value || 3;
-            const scheduleType = document.getElementById('scheduleType').value;
-            const hintText = document.getElementById('hintText');
-            
-            if (scheduleType === 'immediate-repeat') {
-                hintText.textContent = `Post will be published immediately and then repeated every ${intervalHours} hour${intervalHours != 1 ? 's' : ''}`;
-            } else if (scheduleType === 'scheduled-repeat') {
-                hintText.textContent = `Post will be published at the scheduled time and then repeated every ${intervalHours} hour${intervalHours != 1 ? 's' : ''}`;
-            }
-            
-            // Update repeat count options to reflect the interval
-            updateRepeatOptions();
-        }
-        
-        // Update repeat count options based on interval hours
-        function updateRepeatOptions() {
-            const intervalHours = parseInt(document.getElementById('intervalHours').value) || 3;
-            const repeatSelect = document.getElementById('repeatCount');
-            const currentValue = repeatSelect.value;
-            
-            // Calculate repeats for 1, 2, and 7 days
-            const oneDayRepeats = Math.floor(24 / intervalHours);
-            const twoDayRepeats = Math.floor(48 / intervalHours);
-            const sevenDayRepeats = Math.floor(168 / intervalHours);
-            
-            // Update options
-            repeatSelect.innerHTML = `
-                <option value="${oneDayRepeats}">${oneDayRepeats} times (1 day @ ${intervalHours}hr intervals)</option>
-                <option value="${twoDayRepeats}">${twoDayRepeats} times (2 days @ ${intervalHours}hr intervals)</option>
-                <option value="${sevenDayRepeats}">${sevenDayRepeats} times (7 days @ ${intervalHours}hr intervals)</option>
-                <option value="custom">Custom</option>
-            `;
-            
-            // Restore previous selection if it was custom
-            if (currentValue === 'custom') {
-                repeatSelect.value = 'custom';
-                document.getElementById('customRepeatCount').style.display = 'block';
-            }
-        }
-        
-        // Handle interval hours change
-        document.getElementById('intervalHours').addEventListener('input', updateRepeatHint);
-        
-        // Handle custom repeat count
-        document.getElementById('repeatCount').addEventListener('change', (e) => {
-            const customInput = document.getElementById('customRepeatCount');
-            if (e.target.value === 'custom') {
-                customInput.style.display = 'block';
-                customInput.required = true;
-            } else {
-                customInput.style.display = 'none';
-                customInput.required = false;
-            }
-        });
-        
-        // Load posts
-        async function loadPosts() {
-            try {
-                let url = '/api/posts';
-                if (selectedAccountId) {
-                    url += `?accountId=${selectedAccountId}`;
-                }
-                console.log('Loading posts from:', url, 'for account:', selectedAccountId);
-                const response = await fetch(url);
-                const posts = await response.json();
-                console.log('Loaded', posts.length, 'posts');
+                this.hideError();
+                this.showLoading();
                 
-                const container = document.getElementById('postsContainer');
-                
-                if (posts.length === 0) {
-                    container.innerHTML = '<div class="empty-state">No scheduled posts yet. Create your first post above!</div>';
-                    return;
-                }
-                
-                container.innerHTML = '<div class="posts-grid">' + 
-                    posts.map(post => `
-                        <div class="post-card">
-                            <div class="post-header">
-                                <span class="post-status status-${post.status}">${post.status}</span>
-                                <span style="font-size: 12px; color: #666;">${post.publish_method ? `[${post.publish_method.toUpperCase()}]` : '[API]'}</span>
-                                <span>#${post.id}</span>
-                            </div>
-                            <div class="post-time">📅 ${new Date(post.scheduled_for).toLocaleString()}</div>
-                            <div class="post-content">${escapeHtml(post.content)}</div>
-                            ${post.status === 'pending' ? `
-                                <div class="post-actions">
-                                    <button class="publish-btn" onclick="publishNow(${post.id})">Post Now</button>
-                                    <button class="delete-btn" onclick="deletePost(${post.id})">Delete</button>
-                                </div>
-                            ` : ''}
-                            ${post.error_message ? `<div style="color: red; margin-top: 10px; font-size: 14px;">Error: ${escapeHtml(post.error_message)}</div>` : ''}
-                        </div>
-                    `).join('') + '</div>';
-            } catch (error) {
-                document.getElementById('postsContainer').innerHTML = 
-                    '<div class="empty-state">Error loading posts. Please refresh the page.</div>';
-            }
-        }
-        
-        // Escape HTML to prevent XSS
-        function escapeHtml(unsafe) {
-            return unsafe
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
-        
-        // Delete post
-        async function deletePost(id) {
-            if (!confirm('Are you sure you want to delete this post?')) return;
-            
-            try {
-                await fetch(`/api/posts/${id}`, { method: 'DELETE' });
-                loadPosts();
-            } catch (error) {
-                alert('Error deleting post');
-            }
-        }
-        
-        // Publish post now
-        async function publishNow(id) {
-            if (!confirm('Are you sure you want to publish this post immediately?')) return;
-            
-            try {
-                const response = await fetch(`/api/posts/${id}/publish`, { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    alert(`Error publishing post: ${error.error}`);
-                } else {
-                    alert('Post published successfully!');
-                    loadPosts();
-                }
-            } catch (error) {
-                alert('Error publishing post: ' + error.message);
-            }
-        }
-        
-        // Handle form submission
-        document.getElementById('postForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const scheduleType = formData.get('scheduleType');
-            const content = formData.get('content');
-            const publishMethod = formData.get('postPublishMethod');
-            const scheduledFor = formData.get('scheduledFor');
-            const repeatCount = formData.get('repeatCount');
-            const customRepeatCount = formData.get('customRepeatCount');
-            const intervalHours = formData.get('intervalHours');
-            
-            try {
-                let finalRepeatCount = 0;
-                if (scheduleType.includes('repeat')) {
-                    if (repeatCount === 'custom') {
-                        finalRepeatCount = parseInt(customRepeatCount);
-                    } else {
-                        finalRepeatCount = parseInt(repeatCount);
-                    }
-                }
-                
-                // Determine the start time
-                let startTime = new Date();
-                if (scheduleType === 'scheduled' || scheduleType === 'scheduled-repeat') {
-                    startTime = new Date(scheduledFor);
-                }
-                // For immediate posts, ensure we use current time (not the scheduled datetime field)
-                if (scheduleType === 'immediate' || scheduleType === 'immediate-repeat') {
-                    startTime = new Date(); // Always use current time for immediate posts
-                }
-                
-                // Create the post(s)
-                if (finalRepeatCount > 0) {
-                    // Use the custom interval hours or default to 3
-                    const hours = parseInt(intervalHours) || 3;
-                    
-                    await fetch('/api/posts/batch-custom', {
+                try {
+                    // Step 1: Get challenge
+                    this.setStepActive('step1');
+                    const challengeResponse = await fetch('/api/auth/challenge', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            content,
-                            startTime: startTime.toISOString(),
-                            intervalHours: hours,
-                            repeatCount: finalRepeatCount,
-                            accountId: selectedAccountId,
-                            publishMethod: publishMethod
-                        })
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
                     });
-                } else {
-                    // Single post (immediate or scheduled)
-                    await fetch('/api/posts', {
+                    
+                    if (!challengeResponse.ok) {
+                        throw new Error('Failed to get challenge');
+                    }
+                    
+                    const { challenge } = await challengeResponse.json();
+                    this.setStepComplete('step1');
+                    
+                    // Step 2: Get public key
+                    this.setStepActive('step2');
+                    const pubkey = await window.nostr.getPublicKey();
+                    this.setStepComplete('step2');
+                    
+                    // Step 3: Sign event
+                    this.setStepActive('step3');
+                    const authEvent = {
+                        kind: 27235,
+                        created_at: Math.floor(Date.now() / 1000),
+                        tags: [
+                            ['challenge', challenge],
+                            ['relay', 'wss://relay.damus.io']
+                        ],
+                        content: 'Authenticate to Fat Controller',
+                        pubkey: pubkey
+                    };
+                    
+                    const signedEvent = await window.nostr.signEvent(authEvent);
+                    this.setStepComplete('step3');
+                    
+                    // Step 4: Verify with server
+                    this.setStepActive('step4');
+                    const verifyResponse = await fetch('/api/auth/verify', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
                         body: JSON.stringify({
-                            content,
-                            scheduledFor: startTime.toISOString(),
-                            accountId: selectedAccountId,
-                            publishMethod: publishMethod
+                            signedEvent,
+                            challenge
                         })
                     });
+                    
+                    if (!verifyResponse.ok) {
+                        const errorData = await verifyResponse.json();
+                        throw new Error(errorData.error || 'Authentication failed');
+                    }
+                    
+                    const authData = await verifyResponse.json();
+                    this.setStepComplete('step4');
+                    
+                    // Step 5: Save token and redirect
+                    this.setStepActive('step5');
+                    localStorage.setItem('auth_token', authData.token);
+                    this.setStepComplete('step5');
+                    
+                    setTimeout(() => {
+                        this.redirectToMainApp(authData);
+                    }, 1000);
+                    
+                } catch (error) {
+                    console.error('Authentication error:', error);
+                    this.showError(error.message || 'Authentication failed');
                 }
-                
-                e.target.reset();
-                const now = new Date();
-                now.setHours(now.getHours() + 1);
-                document.getElementById('scheduledFor').value = now.toISOString().slice(0, 16);
-                
-                // Reset form UI
-                document.getElementById('scheduleTimeGroup').style.display = 'none';
-                document.getElementById('repeatCountGroup').style.display = 'none';
-                document.getElementById('scheduleHint').style.display = 'none';
-                
-                loadPosts();
-                alert('Post(s) created successfully!');
-            } catch (error) {
-                alert('Error creating post: ' + error.message);
             }
-        });
-        
-        // Load accounts and posts on page load
-        async function initializePage() {
-            await loadAccounts(); // Load accounts first
-            await loadPosts();    // Then load posts with the selected account
+            
+            redirectToMainApp(userData) {
+                // Store user info for the main app
+                localStorage.setItem('user_npub', userData.npub);
+                localStorage.setItem('user_display_name', userData.displayName || '');
+                
+                // Redirect to main app
+                window.location.href = '/notes.html';
+            }
         }
         
-        initializePage();
-        
-        // Refresh posts every 30 seconds
-        setInterval(loadPosts, 30000);
+        // Initialize the authentication system
+        document.addEventListener('DOMContentLoaded', () => {
+            new NostrAuth();
+        });
     </script>
-    
-    <!-- Nostr Tools for key derivation -->
-    <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
 </body>
 </html>
